@@ -18,4 +18,8 @@ def login(user_in: UserCreate, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=400, detail="Invalid credentials")
     access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    user_data = UserRead.from_orm(user)
+    return {
+        "access_token": access_token,
+        "user": user_data
+    }
