@@ -19,7 +19,8 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 from app.db.base import Base  # Import your Base
 from app.models import user   # Import your models to register them with Base
-
+from app.models import job_requirement
+from app.models import job
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

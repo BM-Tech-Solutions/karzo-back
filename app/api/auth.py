@@ -5,6 +5,8 @@ from app.crud.user import create_user, authenticate_user, get_user_by_email
 from app.db.session import get_db
 from app.core.security import create_access_token, verify_token
 from fastapi.security import OAuth2PasswordBearer
+from typing import Callable, Annotated
+from fastapi import Depends, HTTPException, status, Security
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -39,3 +41,26 @@ async def validate_token(token: str = Depends(oauth2_scheme), db: Session = Depe
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {"valid": True}
+
+# Add this function to get the current user
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    email = verify_token(token)
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user = get_user_by_email(db, email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+# Add this function to check if user is admin
+def get_current_admin(user = Depends(get_current_user)):
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    return user

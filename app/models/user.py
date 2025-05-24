@@ -8,5 +8,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=True)
+    phone = Column(String, nullable=True)  # Add this line
+    resume_url = Column(String, nullable=True)  # Add this line
     is_active = Column(Integer, default=1)
-    role = Column(String, nullable=False, default="candidate")  # <-- Add this line
+    role = Column(String, nullable=False, default="candidate")
