@@ -41,3 +41,19 @@ def delete_candidate(db: Session, user_id: int):
         db.delete(db_user)
         db.commit()
     return db_user
+
+# Add this function to your existing crud_user.py file
+
+def update_candidate_profile(db: Session, user_id: int, update_data: dict):
+    """Update specific fields of a candidate's profile"""
+    db_user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not db_user:
+        return None
+    
+    # Update only the provided fields
+    for key, value in update_data.items():
+        setattr(db_user, key, value)
+    
+    db.commit()
+    db.refresh(db_user)
+    return db_user

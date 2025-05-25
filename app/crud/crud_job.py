@@ -3,6 +3,10 @@ from typing import List, Optional, Dict, Any
 from app.models.job import Job
 from app.models.job_requirement import JobRequirement
 from app.schemas.job import JobCreate, JobUpdate
+import logging
+from datetime import date  # Add this import for date.today()
+
+logger = logging.getLogger(__name__)
 
 def get_jobs(db: Session, skip: int = 0, limit: int = 100):
     jobs = db.query(Job).offset(skip).limit(limit).all()
@@ -40,24 +44,47 @@ def get_job(db: Session, job_id: int):
     return None
 
 def create_job(db: Session, job: JobCreate):
-    db_job = Job(
-        title=job.title,
-        company=job.company,
-        location=job.location,
-        description=job.description
-    )
-    db.add(db_job)
-    db.commit()
-    db.refresh(db_job)
-    
-    # Add requirements
-    for req_text in job.requirements:
-        db_requirement = JobRequirement(requirement=req_text, job_id=db_job.id)
-        db.add(db_requirement)
-    
-    db.commit()
-    db.refresh(db_job)
-    return db_job
+    try:
+        # Log the job data
+        logger.info(f"Creating job with data: {job.dict()}")
+        
+        # Create the job
+        db_job = Job(
+            title=job.title,
+            company=job.company,
+            location=job.location,
+            description=job.description,
+            posted_date=date.today()
+        )
+        db.add(db_job)
+        db.commit()
+        db.refresh(db_job)
+        
+        # Create job requirements
+        for req in job.requirements:
+            db_requirement = JobRequirement(
+                requirement=req,
+                job_id=db_job.id
+            )
+            db.add(db_requirement)
+        
+        db.commit()
+        db.refresh(db_job)
+        
+        # Return the job with requirements as a list of strings
+        return {
+            "id": db_job.id,
+            "title": db_job.title,
+            "company": db_job.company,
+            "location": db_job.location,
+            "description": db_job.description,
+            "posted_date": db_job.posted_date,
+            "requirements": [req.requirement for req in db_job.requirements]
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error in create_job: {str(e)}", exc_info=True)
+        raise
 
 def update_job(db: Session, job_id: int, job: JobUpdate):
     db_job = get_job(db, job_id)
