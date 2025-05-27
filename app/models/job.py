@@ -15,3 +15,6 @@ class Job(Base):
     
     # Define relationship with requirements
     requirements = relationship("JobRequirement", back_populates="job", cascade="all, delete-orphan")
+    
+    # Add this to your existing Job model
+    interviews = relationship("Interview", back_populates="job")

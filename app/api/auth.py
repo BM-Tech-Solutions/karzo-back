@@ -56,6 +56,20 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
+# Add this function to get the current user from a token directly (without using Depends)
+async def get_current_user_from_token(token: str, db: Session):
+    email = verify_token(token)
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user = get_user_by_email(db, email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
 # Add this function to check if user is admin
 def get_current_admin(user = Depends(get_current_user)):
     if user.role != "admin":

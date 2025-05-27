@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String
 from app.db.base import Base
+from sqlalchemy.orm import relationship
 
 class User(Base):
     __tablename__ = "users"
@@ -12,3 +13,6 @@ class User(Base):
     resume_url = Column(String, nullable=True)  # Add this line
     is_active = Column(Integer, default=1)
     role = Column(String, nullable=False, default="candidate")
+
+    # Add this to your existing User model
+    interviews = relationship("Interview", back_populates="candidate")

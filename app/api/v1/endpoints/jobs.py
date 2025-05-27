@@ -11,8 +11,21 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 @router.get("/", response_model=List[Job])
-def read_jobs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return crud_job.get_jobs(db, skip=skip, limit=limit)
+def read_jobs(request: Request, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    try:
+        # Log the request for debugging
+        logger.info(f"GET request to /api/jobs with skip={skip}, limit={limit}")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        
+        jobs = crud_job.get_jobs(db, skip=skip, limit=limit)
+        logger.info(f"Successfully retrieved {len(jobs)} jobs")
+        return jobs
+    except Exception as e:
+        logger.error(f"Error retrieving jobs: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving jobs: {str(e)}"
+        )
 
 @router.get("/{job_id}", response_model=Job)
 def read_job(job_id: int, db: Session = Depends(get_db)):
