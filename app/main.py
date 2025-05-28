@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException, Depends
 from app.api import auth
-from app.api.v1.endpoints import candidates, jobs, interviews
+from app.api.v1.endpoints import candidates, jobs, interviews, reports
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
@@ -496,8 +496,8 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(candidates.router, prefix="/api/candidates", tags=["candidates"])
 # Comment out the jobs router to use our direct endpoints instead
 # app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])
-# Comment out the interviews router to use our direct endpoints instead
-# app.include_router(interviews.router, prefix="/api/interviews", tags=["interviews"])
+app.include_router(interviews.router, prefix="/api/interviews", tags=["interviews"])
+app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 
 # Log startup message
 @app.on_event("startup")
