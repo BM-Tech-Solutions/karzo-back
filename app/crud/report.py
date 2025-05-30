@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Union
 from app.models.report import Report
 from app.schemas.report import ReportCreate, ReportUpdate
 import logging
@@ -41,7 +41,11 @@ def create_report(db: Session, report: ReportCreate) -> Report:
             duration=report.duration,
             feedback=report.feedback,
             strengths=strengths,
-            improvements=improvements
+            improvements=improvements,
+            status=report.status,
+            conversation_id=report.conversation_id,
+            transcript=report.transcript,
+            transcript_summary=report.transcript_summary
         )
         db.add(db_report)
         db.commit()
@@ -52,7 +56,7 @@ def create_report(db: Session, report: ReportCreate) -> Report:
         db.rollback()
         raise
 
-def update_report(db: Session, report_id: int, report: ReportUpdate) -> Optional[Report]:
+def update_report(db: Session, report_id: int, report: Union[ReportUpdate, dict]) -> Optional[Report]:
     """
     Update a report
     """
@@ -61,7 +65,13 @@ def update_report(db: Session, report_id: int, report: ReportUpdate) -> Optional
         if not db_report:
             return None
             
-        update_data = report.dict(exclude_unset=True)
+        # Handle both Pydantic models and dictionaries
+        if hasattr(report, 'dict'):
+            # It's a Pydantic model
+            update_data = report.dict(exclude_unset=True)
+        else:
+            # It's a dictionary
+            update_data = report
         
         # Update the report with the new data
         for key, value in update_data.items():

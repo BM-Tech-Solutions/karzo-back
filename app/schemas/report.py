@@ -11,6 +11,10 @@ class ReportBase(BaseModel):
     feedback: Optional[str] = None
     strengths: Optional[List[str]] = None
     improvements: Optional[List[str]] = None
+    status: str = "processing"  # Default to processing
+    conversation_id: Optional[str] = None
+    transcript: Optional[List[Dict[str, Any]]] = None
+    transcript_summary: Optional[str] = None
 
 # Properties to receive via API on creation
 class ReportCreate(ReportBase):
@@ -23,6 +27,10 @@ class ReportUpdate(BaseModel):
     feedback: Optional[str] = None
     strengths: Optional[List[str]] = None
     improvements: Optional[List[str]] = None
+    status: Optional[str] = None
+    conversation_id: Optional[str] = None
+    transcript: Optional[List[Dict[str, Any]]] = None
+    transcript_summary: Optional[str] = None
 
 # Properties shared by models stored in DB
 class ReportInDBBase(ReportBase):
@@ -39,3 +47,9 @@ class Report(ReportInDBBase):
 # Properties stored in DB
 class ReportInDB(ReportInDBBase):
     pass
+
+# Schema for generating a report from a transcript
+class GenerateReportRequest(BaseModel):
+    report_id: int
+    conversation_id: str
+    elevenlabs_api_key: Optional[str] = None

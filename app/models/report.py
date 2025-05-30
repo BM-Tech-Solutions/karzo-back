@@ -15,6 +15,10 @@ class Report(Base):
     strengths = Column(JSON, nullable=True)  # Store as JSON array
     improvements = Column(JSON, nullable=True)  # Store as JSON array
     created_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, nullable=False, default="processing")  # processing, complete
+    conversation_id = Column(String, nullable=True)  # ElevenLabs conversation ID
+    transcript = Column(JSON, nullable=True)  # Full conversation transcript
+    transcript_summary = Column(Text, nullable=True)  # Summary of the transcript
     
     # Relationships
     interview = relationship("Interview", backref="report")
