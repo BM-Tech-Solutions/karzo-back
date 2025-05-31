@@ -80,33 +80,99 @@ async def analyze_transcript_with_openai(transcript: List[Dict[str, Any]], job_p
     try:
         # Format the transcript for OpenAI
         conversation_text = ""
+        candidate_responses = 0
+        interviewer_questions = 0
+        
         for turn in transcript:
             role = turn.get("role", "unknown")
             message = turn.get("message", "")
             conversation_text += f"{role.upper()}: {message}\n\n"
+            
+            # Count candidate responses and interviewer questions
+            if role.lower() == "user" or role.lower() == "candidate":
+                candidate_responses += 1
+            elif role.lower() == "agent" or role.lower() == "interviewer":
+                interviewer_questions += 1
+        
+        # Check if the transcript is complete enough for analysis
+        is_incomplete = candidate_responses < 2 or interviewer_questions < 2
+        
+        # Log the transcript completeness
+        logger.info(f"Transcript analysis: {len(transcript)} turns, {candidate_responses} candidate responses, {interviewer_questions} interviewer questions")
+        logger.info(f"Transcript is {'incomplete' if is_incomplete else 'complete enough'} for proper analysis")
         
         # Create prompt for OpenAI
-        prompt = f"""
-        You are an expert interview analyst. You've been given the transcript of a job interview for a {job_position} position.
+        if is_incomplete:
+            # If the transcript is incomplete, instruct OpenAI to provide appropriate feedback
+            prompt = f"""
+            You are an expert interview analyst. You've been given a transcript of a job interview for a {job_position} position.
+            
+            IMPORTANT: The transcript appears to be INCOMPLETE. It only contains {len(transcript)} turns with {candidate_responses} candidate responses and {interviewer_questions} interviewer questions.
+            
+            Based on this incomplete transcript, please provide:
+            1. A low score (0-30 out of 100) reflecting the incomplete nature of the transcript
+            2. Feedback explaining that the transcript is incomplete and cannot be properly analyzed
+            3. No strengths (empty array) since there isn't enough information
+            4. One improvement suggestion to complete the interview properly
+            
+            Here is the incomplete transcript:
+
+            {conversation_text}
+            
+            Format your response as a JSON object with the following structure:
+            {{
+                "score": <low_score_out_of_100>,
+                "feedback": "The transcript is incomplete and cannot be properly analyzed...",
+                "strengths": [],
+                "improvements": ["Complete the interview process", ...]
+            }}
+            """
+        else:
+            # Normal prompt for complete transcripts
+            prompt = f"""
+            You are an expert interview analyst. You've been given the transcript of a job interview for a {job_position} position.
+            
+            Please analyze this interview and provide:
+            1. A score from 0-100 (where 100 is perfect) based on the candidate's performance
+            2. Detailed feedback on the candidate's interview performance
+            3. 3-5 key strengths demonstrated in the interview
+            4. 3-5 areas for improvement
+            
+            Here is the interview transcript:
+
+            {conversation_text}
+            
+            Format your response as a JSON object with the following structure:
+            {{
+                "score": <score_out_of_100>,
+                "feedback": "<detailed feedback>",
+                "strengths": ["strength1", "strength2", ...],
+                "improvements": ["improvement1", "improvement2", ...]
+            }}
+            """
         
-        Please analyze this interview and provide:
-        1. A score from 0-100 based on the candidate's performance
-        2. Detailed feedback on the candidate's interview performance
-        3. 3-5 key strengths demonstrated in the interview
-        4. 3-5 areas for improvement
+        # Log the prompt being sent to OpenAI
+        logger.info(f"Sending prompt to OpenAI for job position: {job_position}")
+        # Log first 200 chars of transcript to avoid huge logs
+        logger.info(f"Transcript preview (first 200 chars): {conversation_text[:200]}...")
         
-        Here is the interview transcript:
+        # Create a truncated version of the prompt for logging
+        truncated_prompt = prompt
+        if len(conversation_text) > 500:
+            # Replace the full transcript with a truncated version in the log
+            transcript_preview = conversation_text[:500] + "...[transcript truncated]"
+            truncated_prompt = prompt.replace(conversation_text, transcript_preview)
         
-        {conversation_text}
-        
-        Format your response as a JSON object with the following structure:
-        {{
-            "score": <score>,
-            "feedback": "<detailed feedback>",
-            "strengths": ["strength1", "strength2", ...],
-            "improvements": ["improvement1", "improvement2", ...]
-        }}
-        """
+        # Log the actual prompt structure with truncated transcript
+        prompt_structure = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": "You are an expert interview analyst."},
+                {"role": "user", "content": truncated_prompt}
+            ],
+            "response_format": {"type": "json_object"}
+        }
+        logger.info(f"OpenAI request structure: {json.dumps(prompt_structure, indent=2)}")
         
         # Call OpenAI API
         response = client.chat.completions.create(
@@ -120,6 +186,7 @@ async def analyze_transcript_with_openai(transcript: List[Dict[str, Any]], job_p
         
         # Parse OpenAI response
         analysis_text = response.choices[0].message.content
+        logger.info(f"OpenAI response: {analysis_text}")
         analysis = json.loads(analysis_text)
         
         return analysis
@@ -134,12 +201,21 @@ async def process_report(report_id: int, conversation_id: str, db: Session, elev
     """
     Background task to process a report
     """
+    logger.info(f"Starting report processing for report_id={report_id}, conversation_id={conversation_id}")
+    if elevenlabs_api_key:
+        # Log that we're using a provided API key (without showing the actual key)
+        logger.info(f"Using ElevenLabs API key: {elevenlabs_api_key[:4]}...{elevenlabs_api_key[-3:]}")
+    else:
+        logger.info("No ElevenLabs API key provided, will use environment variable")
     try:
         # Get the report
+        logger.info(f"Fetching report with id {report_id} from database")
         db_report = report_crud.get_report(db, report_id=report_id)
         if not db_report:
-            logger.error(f"Report {report_id} not found")
+            logger.error(f"Report with id {report_id} not found")
             return
+        
+        logger.info(f"Found report for interview_id={db_report.interview_id}")
         
         # Get the interview details to extract job position
         interview = db_report.interview
@@ -148,7 +224,9 @@ async def process_report(report_id: int, conversation_id: str, db: Session, elev
         # Fetch transcript from ElevenLabs
         # Use the conversation_id from the report if available
         report_conversation_id = db_report.conversation_id or conversation_id
+        logger.info(f"Fetching transcript from ElevenLabs for conversation_id={conversation_id}")
         elevenlabs_data = await fetch_transcript_from_elevenlabs(report_conversation_id, elevenlabs_api_key)
+        logger.info(f"Successfully fetched transcript, length: {len(str(elevenlabs_data))} characters")
         
         # Check if conversation is still processing
         if elevenlabs_data.get("status") == "processing":
@@ -160,6 +238,7 @@ async def process_report(report_id: int, conversation_id: str, db: Session, elev
         transcript_summary = elevenlabs_data.get("analysis", {}).get("transcript_summary", "")
         
         # Update report with transcript data
+        logger.info(f"Updating report with transcript data")
         report_crud.update_report(
             db, 
             report_id=report_id, 
@@ -171,9 +250,12 @@ async def process_report(report_id: int, conversation_id: str, db: Session, elev
         )
         
         # Analyze transcript with OpenAI
+        logger.info(f"Starting OpenAI analysis for job position: {job_position}")
         analysis = await analyze_transcript_with_openai(transcript, job_position)
+        logger.info(f"OpenAI analysis complete, score: {analysis.get('score', 'N/A')}")
         
         # Update report with analysis
+        logger.info(f"Updating report with analysis results")
         report_crud.update_report(
             db, 
             report_id=report_id, 
@@ -185,10 +267,28 @@ async def process_report(report_id: int, conversation_id: str, db: Session, elev
                 "status": "complete"
             }
         )
+        logger.info(f"Setting report status to 'complete'")
+        logger.info(f"Report {report_id} successfully updated with analysis results")
         
         logger.info(f"Successfully processed report {report_id}")
     except Exception as e:
-        logger.error(f"Error processing report {report_id}: {str(e)}", exc_info=True)
+        error_message = f"Error processing report {report_id}: {str(e)}"
+        logger.error(error_message, exc_info=True)
+        
+        # Update report status to error with error details
+        try:
+            logger.info(f"Setting report {report_id} status to 'error'")
+            report_crud.update_report(
+                db=db,
+                report_id=report_id,
+                report={
+                    "status": "error",
+                    "feedback": f"Error generating report: {str(e)}"
+                }
+            )
+            logger.info(f"Report {report_id} marked as error")
+        except Exception as update_error:
+            logger.error(f"Failed to update report status to error: {str(update_error)}", exc_info=True)
 
 @router.post("/generate-report")
 async def generate_report(
