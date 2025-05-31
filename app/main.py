@@ -108,7 +108,29 @@ async def authenticate_request(request: Request, db: Session):
     logger.info(f"User authenticated: {current_user.email}, role: {current_user.role}")
     return current_user
 
-# Add direct endpoint for jobs
+# Add direct endpoints for jobs
+@app.post("/api/jobs", summary="Create a new job", description="Create a new job posting.")
+async def create_job_direct(request: Request, db: Session = Depends(get_db)):
+    try:
+        # Log the incoming request data for debugging
+        body = await request.json()
+        logger.info(f"Received job creation request: {body}")
+        
+        # Import the schema and CRUD function here to avoid circular imports
+        from app.schemas.job import JobCreate
+        from app.crud.crud_job import create_job
+        
+        # Convert the request body to a JobCreate object
+        job_data = JobCreate(**body)
+        
+        # Create the job
+        return create_job(db, job_data)
+    except Exception as e:
+        # Log the error
+        logger.error(f"Error creating job: {str(e)}", exc_info=True)
+        # Re-raise the exception to let FastAPI handle it
+        raise
+
 @app.get("/api/jobs", summary="Get all jobs", description="Retrieve a list of all available jobs with pagination support.")
 async def get_jobs_direct(request: Request, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     try:
@@ -494,8 +516,8 @@ async def create_interview_direct(request: Request, db: Session = Depends(get_db
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(candidates.router, prefix="/api/candidates", tags=["candidates"])
-# Comment out the jobs router to use our direct endpoints instead
-# app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])
+# Use both direct endpoints and router endpoints for jobs
+app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])
 app.include_router(interviews.router, prefix="/api/interviews", tags=["interviews"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(transcript_processing.router, prefix="/api/transcript", tags=["transcript"])
