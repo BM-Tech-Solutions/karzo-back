@@ -5,16 +5,22 @@ load_dotenv()
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+# Import all models to ensure they are registered with SQLAlchemy
 from app.models.user import User
+from app.models.interview import Interview
+from app.models.job import Job
+from app.models.job_requirement import JobRequirement
+from app.models.report import Report
 from app.core.security import get_password_hash
 
 def seed_admin():
-    # Use localhost instead of 'db' for local execution
-    user = os.getenv("POSTGRES_USER", "postgres")
-    password = os.getenv("POSTGRES_PASSWORD", "karzo")
-    host = "localhost"  # Use localhost when running outside Docker
-    port = os.getenv("POSTGRES_PORT", "5432")
-    db = os.getenv("POSTGRES_DB", "karzo")
+    # Get database connection parameters from environment variables
+    user = os.getenv("POSTGRES_USER")
+    password = os.getenv("POSTGRES_PASSWORD")
+    # Check if running in Docker or locally
+    host = os.getenv("POSTGRES_HOST")  # Use environment variable or default to 'db' for Docker
+    port = os.getenv("POSTGRES_PORT")
+    db = os.getenv("POSTGRES_DB")
     
     # Create a direct database URL for local connection
     database_url = f"postgresql://{user}:{password}@{host}:{port}/{db}"
