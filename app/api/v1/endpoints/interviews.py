@@ -125,3 +125,32 @@ def read_candidate_interviews(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred"
         )
+
+# Add a company-specific endpoint
+from app.api.v1.company_auth import get_current_company
+from app.models.company import Company
+
+@router.get("/company", response_model=List[dict])
+@router.get("/company/", response_model=List[dict])
+def read_company_interviews(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_company)
+):
+    """
+    Get all interviews for the current company's job offers
+    """
+    try:
+        logger.info(f"Fetching interviews for company ID: {current_company.id}")
+        
+        # Get interviews for the company
+        interviews = crud.get_interviews_by_company(db, current_company.id, skip, limit)
+        
+        # Return the interviews (empty list if none found)
+        logger.info(f"Successfully retrieved {len(interviews)} interviews for company {current_company.id}")
+        return interviews
+    except Exception as e:
+        logger.error(f"Error retrieving company interviews: {str(e)}", exc_info=True)
+        # Return empty list instead of throwing 500 error
+        return []

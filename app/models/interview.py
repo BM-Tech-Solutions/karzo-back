@@ -9,6 +9,7 @@ class Interview(Base):
     id = Column(Integer, primary_key=True, index=True)
     candidate_id = Column(Integer, ForeignKey("users.id"))
     job_id = Column(Integer, ForeignKey("jobs.id"))
+    job_offer_id = Column(Integer, ForeignKey("job_offers.id"), nullable=True)
     date = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="completed")  
     feedback = Column(Text, nullable=True)
@@ -17,3 +18,4 @@ class Interview(Base):
     # Relationships
     candidate = relationship("User", back_populates="interviews")
     job = relationship("Job", back_populates="interviews")
+    job_offer = relationship("JobOffer", back_populates="interviews")
