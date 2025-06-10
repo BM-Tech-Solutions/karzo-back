@@ -241,32 +241,31 @@ def get_interviews_by_company(db: Session, company_id: int, skip: int = 0, limit
     from app.models.job_offer import JobOffer
     from app.crud.job_offer import get_job_offers_by_company
     
-    # Get all job offers for the company
-    job_offers = get_job_offers_by_company(db, company_id)
-    job_offer_ids = [jo.id for jo in job_offers]
+    # Get all job offers for this company
+    job_offers = db.query(JobOffer).filter(JobOffer.company_id == company_id).all()
+    job_offer_ids = [job_offer.id for job_offer in job_offers]
     
+    # If there are no job offers, return an empty list
     if not job_offer_ids:
         return []
     
-    # Query interviews with candidate and job offer details
+    # Query for interviews with candidate and job offer details
     results = db.query(
         Interview.id,
-        Interview.date,
-        Interview.status,
+        Interview.candidate_id,
+        User.name.label('candidate_name'),
+        User.email.label('candidate_email'),
         Interview.job_offer_id,
-        User.id.label("candidate_id"),
-        User.full_name.label("candidate_name"),
-        User.email.label("candidate_email"),
-        JobOffer.title.label("job_title")
+        JobOffer.title.label('job_title'),
+        Interview.date,
+        Interview.status
     ).join(
-        User, Interview.candidate_id == User.id
+        User, User.id == Interview.candidate_id
     ).join(
-        JobOffer, Interview.job_offer_id == JobOffer.id
+        JobOffer, JobOffer.id == Interview.job_offer_id
     ).filter(
-        Interview.job_offer_id.in_(job_offer_ids)
-    ).order_by(
-        Interview.date.desc()
-    ).offset(skip).limit(limit).all()
+        JobOffer.company_id == company_id
+    ).all()
     
     # Convert the results to a list of dictionaries
     interviews = []

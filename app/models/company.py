@@ -18,3 +18,4 @@ class Company(Base):
     # Relationships
     job_offers = relationship("JobOffer", back_populates="company")
     invitations = relationship("Invitation", back_populates="company")
+    applications = relationship("Application", back_populates="company")

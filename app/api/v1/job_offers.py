@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.api.v1.company_auth import get_current_company
 from typing import List
 from datetime import datetime
+from app.models.interview import Interview
 
 # Helper function to transform job offer to dict with safe access to fields
 def transform_job_offer_to_dict(job_offer):
@@ -19,7 +20,8 @@ def transform_job_offer_to_dict(job_offer):
             "is_active": job_offer.is_active,
             "status": "active" if job_offer.is_active else "inactive",
             "created_at": datetime.now().isoformat(),  # Use current date as default
-            "applications_count": len(job_offer.interviews) if hasattr(job_offer, 'interviews') else 0
+            # Count applications for this job offer
+            "applications_count": len(db.query(Interview).filter(Interview.job_offer_id == job_offer.id).all())
         }
     except Exception as e:
         print(f"Error transforming job offer: {e}")

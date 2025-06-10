@@ -18,6 +18,8 @@ class JobOffer(Base):
     requirements = relationship("JobRequirement", back_populates="job_offer")
     questions = relationship("JobQuestion", back_populates="job_offer")
     interviews = relationship("Interview", back_populates="job_offer")
+    invitations = relationship("Invitation", back_populates="job_offer")
+    applications = relationship("Application", back_populates="job_offer")
 
 class JobQuestion(Base):
     __tablename__ = "job_questions"
