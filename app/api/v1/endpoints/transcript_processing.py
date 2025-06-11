@@ -22,7 +22,7 @@ client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 async def fetch_transcript_from_elevenlabs(conversation_id: str, api_key: str = None) -> Dict[str, Any]:
     """
-    Fetch transcript from ElevenLabs API
+    Fetch transcript from ElevenLabs API with robust handling of different endpoint formats
     """
     try:
         # Use provided API key or get from environment variable
@@ -30,11 +30,6 @@ async def fetch_transcript_from_elevenlabs(conversation_id: str, api_key: str = 
             # Try multiple environment variable names
             api_key = os.getenv("ELEVENLABS_API_KEY") or os.getenv("NEXT_PUBLIC_ELEVENLABS_API_KEY")
             
-            # Hardcoded key for testing (only use in development)
-            if not api_key:
-                api_key = "sk_7285d9e3401a8364817514d44289c9acad85e3ddeb1e0887"
-                logger.warning("Using hardcoded ElevenLabs API key for testing")
-        
         if not api_key:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -43,19 +38,84 @@ async def fetch_transcript_from_elevenlabs(conversation_id: str, api_key: str = 
         
         logger.info(f"Using ElevenLabs API key: {api_key[:5]}...{api_key[-3:]}")
         
-        # Make request to ElevenLabs API
-        response = requests.get(
-            f"https://api.elevenlabs.io/v1/convai/conversations/{conversation_id}",
-            headers={"Xi-Api-Key": api_key}
-        )
+        # Clean conversation_id - sometimes they come with prefix/suffix
+        conversation_id = conversation_id.strip()
+        # Check if we need to format the conversation ID
+        if not conversation_id.startswith("conv_"):
+            # Try to format it with conv_ prefix if it's not already there
+            logger.info(f"Adding 'conv_' prefix to conversation ID: {conversation_id}")
+            formatted_conv_id = f"conv_{conversation_id}"
+        else:
+            formatted_conv_id = conversation_id
         
-        # Check if request was successful
-        if not response.ok:
-            logger.error(f"ElevenLabs API error: {response.status_code} {response.text}")
+        logger.info(f"Original conversation_id: {conversation_id}")
+        logger.info(f"Formatted conversation_id: {formatted_conv_id}")
+        
+        # Define all URL variations to try in sequence
+        url_variations = [
+            # Main format from docs with /convai/
+            f"https://api.elevenlabs.io/v1/convai/conversations/{formatted_conv_id}",
+            # Alternative without /convai/
+            f"https://api.elevenlabs.io/v1/conversations/{formatted_conv_id}",
+            # Try with original ID with /convai/
+            f"https://api.elevenlabs.io/v1/convai/conversations/{conversation_id}",
+            # Try with original ID without /convai/
+            f"https://api.elevenlabs.io/v1/conversations/{conversation_id}"
+        ]
+        
+        # Try different header variations
+        header_variations = [
+            {"Xi-Api-Key": api_key},  # Docs format with capital X
+            {"xi-api-key": api_key},  # Alternative with lowercase x
+        ]
+        
+        successful_response = None
+        last_error = None
+        
+        # Try all combinations of URLs and headers
+        for url in url_variations:
+            for headers in header_variations:
+                try:
+                    logger.info(f"Trying API request to: {url} with headers: {headers.keys()}")
+                    response = requests.get(url, headers=headers, timeout=30)
+                    response_data = None
+                    
+                    # Log response status
+                    logger.info(f"Response status: {response.status_code}")
+                    
+                    try:
+                        response_data = response.json()
+                        logger.info(f"Response data keys: {list(response_data.keys()) if isinstance(response_data, dict) else 'Not a dict'}")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse response as JSON: {str(e)}")
+                    
+                    if response.status_code == 200 and response_data and isinstance(response_data, dict) and "transcript" in response_data:
+                        logger.info(f"Successful response from URL: {url}")
+                        successful_response = response
+                        break
+                    else:
+                        error_msg = f"Request failed or invalid response: status={response.status_code}, has_transcript={'transcript' in response_data if response_data and isinstance(response_data, dict) else False}"
+                        logger.warning(error_msg)
+                        last_error = error_msg
+                except Exception as e:
+                    logger.warning(f"Exception during request to {url}: {str(e)}")
+                    last_error = str(e)
+            
+            if successful_response:
+                break
+        
+        # Handle the case where no requests were successful
+        if not successful_response:
+            error_msg = f"All requests to ElevenLabs API failed. Last error: {last_error}"
+            logger.error(error_msg)
+            
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to fetch transcript from ElevenLabs: {response.text}"
+                detail=f"Failed to fetch transcript from ElevenLabs: {error_msg}"
             )
+        
+        # Process the successful response
+        response = successful_response
         
         # Parse response
         data = response.json()

@@ -8,6 +8,8 @@ from app.crud import company as company_crud
 from app.crud import job_offer as job_offer_crud
 from app.crud import interview as interview_crud
 from app.crud import candidate as candidate_crud
+from app.crud import guest_candidate as guest_candidate_crud
+from app.crud import guest_interview as guest_interview_crud
 from app.models.company import Company
 from app.schemas.company import CompanyRead, CompanyUpdate
 from app.schemas.candidate import CandidateRead
@@ -138,16 +140,98 @@ def get_company_candidates(
         # Get all job offers for the company
         job_offers = job_offer_crud.get_job_offers_by_company(db, current_company.id)
         job_offer_ids = [jo.id for jo in job_offers]
+        print(f"Job offer IDs for company {current_company.id}: {job_offer_ids}")
+        
+        if not job_offer_ids:
+            print("No job offers found, returning empty list")
+            return []
+        
+        # Get candidates who have applied to these job offers (both regular and guest)
+        candidates = candidate_crud.get_candidates_by_job_offers(db, job_offer_ids)
+        print(f"Regular candidates found: {len(candidates)}")
+        
+        guest_candidates = guest_candidate_crud.get_guest_candidates_by_job_offers(db, job_offer_ids, current_company.id)
+        print(f"Guest candidates found: {len(guest_candidates)}")
+        if guest_candidates:
+            print(f"First guest candidate: {guest_candidates[0]}")
+        
+        # Combine both types of candidates
+        all_candidates = candidates + guest_candidates
+        print(f"Total candidates: {len(all_candidates)}")
+        
+        return all_candidates
+    except Exception as e:
+        print(f"Error in get company candidates: {e}")
+        return []
+
+@router.get("/candidates/passed", response_model=List[dict])
+def get_passed_candidates(
+    current_company: Company = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    """
+    Get candidates who have passed interviews for this company's job offers.
+    """
+    try:
+        # Get all job offers for the company
+        job_offers = job_offer_crud.get_job_offers_by_company(db, current_company.id)
+        job_offer_ids = [jo.id for jo in job_offers]
         
         if not job_offer_ids:
             return []
         
-        # Get candidates who have applied to these job offers
-        candidates = candidate_crud.get_candidates_by_job_offers(db, job_offer_ids)
+        # Get candidates who have passed interviews for these job offers (both regular and guest)
+        candidates = candidate_crud.get_passed_candidates_by_job_offers(db, job_offer_ids)
+        guest_candidates = guest_candidate_crud.get_passed_guest_candidates_by_job_offers(db, job_offer_ids, current_company.id)
         
-        return candidates
+        # Combine both types of candidates
+        all_passed_candidates = candidates + guest_candidates
+        
+        return all_passed_candidates
     except Exception as e:
-        print(f"Error in get company candidates: {e}")
+        print(f"Error in get passed candidates: {e}")
+        return []
+
+@router.get("/interviews", response_model=List[dict])
+@router.get("/interviews/", response_model=List[dict])
+def get_company_interviews(
+    current_company: Company = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    """
+    Get all interviews for this company's job offers (both regular and guest interviews).
+    """
+    try:
+        # Get regular interviews for this company
+        regular_interviews = interview_crud.get_interviews_by_company(db, current_company.id)
+        
+        # Get guest interviews for this company
+        guest_interviews = guest_interview_crud.get_guest_interviews_by_company(db, current_company.id)
+        
+        # Combine both types of interviews
+        all_interviews = regular_interviews + guest_interviews
+        
+        return all_interviews
+    except Exception as e:
+        print(f"Error in get company interviews: {e}")
+        return []
+
+@router.get("/guest-interviews", response_model=List[dict])
+@router.get("/guest-interviews/", response_model=List[dict])
+def get_company_guest_interviews(
+    current_company: Company = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    """
+    Get all guest interviews for this company's job offers.
+    """
+    try:
+        # Get guest interviews for this company
+        guest_interviews = guest_interview_crud.get_guest_interviews_by_company(db, current_company.id)
+        
+        return guest_interviews
+    except Exception as e:
+        print(f"Error in get company guest interviews: {e}")
         return []
 
 @router.get("/invitations", response_model=List)

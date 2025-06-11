@@ -20,8 +20,10 @@ class Application(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     job_offer_id = Column(Integer, ForeignKey("job_offers.id"), nullable=True)
     invitation_id = Column(Integer, ForeignKey("invitations.id"), nullable=True)
+    guest_candidate_id = Column(Integer, ForeignKey("guest_candidates.id"), nullable=True)
     
     # Relationships
     company = relationship("Company", back_populates="applications")
     job_offer = relationship("JobOffer", back_populates="applications")
     invitation = relationship("Invitation", back_populates="applications")
+    guest_candidate = relationship("GuestCandidate", back_populates="applications")

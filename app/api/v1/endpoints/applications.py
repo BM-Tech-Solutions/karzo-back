@@ -3,12 +3,15 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional
 import logging
 from datetime import datetime
+import uuid
+import os
 
 from app.db.session import get_db
 from app.models.invitation import Invitation
 from app.models.job_offer import JobOffer
 from app.models.application import Application
 from app.models.company import Company
+from app.models.guest_candidate import GuestCandidate, GuestInterview
 from app.core.config import settings
 
 router = APIRouter()
@@ -92,6 +95,22 @@ async def submit_application_with_token(
             resume_path = None
     
     try:
+        # Check if guest candidate already exists
+        guest_candidate = db.query(GuestCandidate).filter(GuestCandidate.email == email).first()
+        
+        # Create guest candidate if not exists
+        if not guest_candidate:
+            guest_candidate = GuestCandidate(
+                email=email,
+                full_name=name,
+                phone=phone,
+                resume_url=resume_path,
+                created_at=datetime.now()
+            )
+            db.add(guest_candidate)
+            db.flush()  # Get the guest candidate ID without committing
+            logger.info(f"Created new guest candidate with ID: {guest_candidate.id}")
+        
         # Create application record
         application = Application(
             name=name,
@@ -99,26 +118,43 @@ async def submit_application_with_token(
             phone=phone,
             cover_letter=cover_letter,
             resume_path=resume_path,
-            company_id=company.id,
-            job_offer_id=invitation.job_offer_id,
             status="pending",
             created_at=datetime.now(),
-            invitation_id=invitation.id
+            company_id=company.id,
+            job_offer_id=invitation.job_offer_id,
+            invitation_id=invitation.id,
+            guest_candidate_id=guest_candidate.id  # Link to guest candidate
+        )
+        
+        # Create guest interview record with status "processing" so report can be generated immediately
+        guest_interview = GuestInterview(
+            guest_candidate_id=guest_candidate.id,
+            job_offer_id=invitation.job_offer_id,
+            status="processing",  # Use processing status to enable report generation
+            score=0,  # Default score
+            created_at=datetime.now(),
+            conversation_id=str(uuid.uuid4()),  # Generate a unique conversation ID
+            report_id=None,
+            report_status=None
         )
         
         # Update invitation status
         invitation.status = "accepted"
         
         # Save to database
+        db.add(guest_interview)
         db.add(application)
         db.commit()
         db.refresh(application)
+        db.refresh(guest_interview)
         
         logger.info(f"Application created with ID: {application.id}")
+        logger.info(f"Interview created with ID: {guest_interview.id}")
         
         # Return application details
         return {
             "id": application.id,
+            "guest_interview_id": guest_interview.id,  # Include the guest interview ID
             "status": "success",
             "message": "Application submitted successfully",
             "company_name": company.name,

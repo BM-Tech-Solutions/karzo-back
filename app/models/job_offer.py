@@ -20,6 +20,7 @@ class JobOffer(Base):
     interviews = relationship("Interview", back_populates="job_offer")
     invitations = relationship("Invitation", back_populates="job_offer")
     applications = relationship("Application", back_populates="job_offer")
+    guest_interviews = relationship("GuestInterview", back_populates="job_offer")
 
 class JobQuestion(Base):
     __tablename__ = "job_questions"

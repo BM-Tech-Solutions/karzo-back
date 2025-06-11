@@ -253,7 +253,7 @@ def get_interviews_by_company(db: Session, company_id: int, skip: int = 0, limit
     results = db.query(
         Interview.id,
         Interview.candidate_id,
-        User.name.label('candidate_name'),
+        User.full_name.label('candidate_name'),
         User.email.label('candidate_email'),
         Interview.job_offer_id,
         JobOffer.title.label('job_title'),

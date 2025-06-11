@@ -15,6 +15,12 @@ class Interview(Base):
     feedback = Column(Text, nullable=True)
     score = Column(Integer, nullable=True)
     
+    # New fields for report generation
+    conversation_id = Column(String, nullable=True)  # ID of the conversation for report generation
+    report_id = Column(String, nullable=True)  # ID of the generated report
+    report_status = Column(String, nullable=True)  # Status of report generation (null, processing, complete)
+    created_at = Column(DateTime, default=datetime.utcnow)  # When the interview was created
+    
     # Relationships
     candidate = relationship("User", back_populates="interviews")
     job = relationship("Job", back_populates="interviews")
