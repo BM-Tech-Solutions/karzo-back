@@ -133,7 +133,7 @@ async def submit_application_with_token(
             status="processing",  # Use processing status to enable report generation
             score=0,  # Default score
             created_at=datetime.now(),
-            conversation_id=str(uuid.uuid4()),  # Generate a unique conversation ID
+            conversation_id=None,  # Will be set when the actual ElevenLabs conversation starts
             report_id=None,
             report_status=None
         )

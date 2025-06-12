@@ -10,6 +10,8 @@ from app.crud import interview as interview_crud
 from app.crud import candidate as candidate_crud
 from app.crud import guest_candidate as guest_candidate_crud
 from app.crud import guest_interview as guest_interview_crud
+from app.crud import guest_report as guest_report_crud
+from app.models import guest_report
 from app.models.company import Company
 from app.schemas.company import CompanyRead, CompanyUpdate
 from app.schemas.candidate import CandidateRead
@@ -266,3 +268,194 @@ def create_company_invitation(
     invitation = company_crud.create_invitation(db, current_company.id, invitation_data)
     
     return invitation
+
+
+@router.get("/reports/")
+def get_company_reports(
+    current_company: Company = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    """
+    Get all reports for this company's interviews (both regular and guest interviews).
+    """
+    try:
+        # Get all guest reports for this company
+        guest_reports = guest_report_crud.get_guest_reports_by_company(db, current_company.id)
+        
+        # Format the guest reports for the response
+        formatted_reports = []
+        for report in guest_reports:
+            # Get the associated guest interview to get job title and candidate info
+            guest_interview = guest_interview_crud.get_guest_interview_by_id(db, report.guest_interview_id)
+            
+            if guest_interview and guest_interview.guest_candidate and guest_interview.job_offer:
+                formatted_reports.append({
+                    "id": report.id,
+                    "guest_interview_id": report.guest_interview_id,
+                    "candidate_name": guest_interview.guest_candidate.full_name,
+                    "candidate_email": report.candidate_email,
+                    "job_title": guest_interview.job_offer.title,
+                    "status": report.status,
+                    "created_at": report.created_at.isoformat() if report.created_at else None,
+                    "score": report.score,
+                    "duration": report.duration,
+                    "feedback": report.feedback,
+                    "strengths": report.strengths,
+                    "improvements": report.improvements,
+                    "conversation_id": report.conversation_id,
+                    "error_message": report.error_message
+                })
+        
+        return formatted_reports
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching reports: {str(e)}"
+        )
+
+
+@router.get("/reports/{report_id}/status")
+def get_report_status(
+    report_id: int,
+    current_company: Company = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    """
+    Get the status of a specific report for this company.
+    """
+    try:
+        # Get the report
+        report = db.query(guest_report.GuestReport).filter(guest_report.GuestReport.id == report_id).first()
+        
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Report with ID {report_id} not found"
+            )
+        
+        # Check if this report belongs to the company
+        guest_interview = guest_interview_crud.get_guest_interview_by_id(db, report.guest_interview_id)
+        if not guest_interview or not guest_interview.job_offer or guest_interview.job_offer.company_id != current_company.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to access this report"
+            )
+        
+        # Return the status
+        return {
+            "status": report.status,
+            "error_message": report.error_message
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error checking report status: {str(e)}"
+        )
+
+
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
+
+@router.get("/reports/{report_id}")
+def get_report_by_id(
+    report_id: int,
+    current_company: Company = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    """
+    Get a specific report by ID for this company.
+    """
+    try:
+        logger.info(f"Fetching report with ID: {report_id}")
+        
+        # Get the report
+        report = db.query(guest_report.GuestReport).filter(guest_report.GuestReport.id == report_id).first()
+        logger.info(f"Report found: {report is not None}")
+        
+        if not report:
+            logger.warning(f"Report with ID {report_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Report with ID {report_id} not found"
+            )
+        
+        # Log report details for debugging
+        logger.info(f"Report details: ID={report.id}, status={report.status}, guest_interview_id={report.guest_interview_id}")
+        
+        # Check if this report belongs to the company
+        guest_interview = guest_interview_crud.get_guest_interview_by_id(db, report.guest_interview_id)
+        logger.info(f"Guest interview found: {guest_interview is not None}")
+        
+        if not guest_interview:
+            logger.warning(f"Guest interview with ID {report.guest_interview_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Guest interview with ID {report.guest_interview_id} not found"
+            )
+            
+        logger.info(f"Guest interview details: ID={guest_interview.id}, job_offer_id={guest_interview.job_offer_id}")
+        
+        if not guest_interview.job_offer:
+            logger.warning(f"Job offer not found for guest interview {guest_interview.id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job offer not found for this interview"
+            )
+            
+        logger.info(f"Job offer details: ID={guest_interview.job_offer.id}, company_id={guest_interview.job_offer.company_id}")
+        logger.info(f"Current company ID: {current_company.id}")
+        
+        if guest_interview.job_offer.company_id != current_company.id:
+            logger.warning(f"Company ID mismatch: {guest_interview.job_offer.company_id} != {current_company.id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to access this report"
+            )
+        
+        # Get the guest candidate
+        guest_candidate = None
+        if guest_interview and guest_interview.guest_candidate_id:
+            guest_candidate = guest_candidate_crud.get_guest_candidate_by_id(db, guest_interview.guest_candidate_id)
+            logger.info(f"Guest candidate found: {guest_candidate is not None}")
+            if guest_candidate:
+                logger.info(f"Candidate details: ID={guest_candidate.id}, name={guest_candidate.full_name}")
+        
+        # Format the response
+        try:
+            response = {
+                "id": report.id,
+                "content": report.transcript if report.transcript else [],
+                "summary": report.transcript_summary if report.transcript_summary else "",
+                "strengths": report.strengths if report.strengths else [],
+                "weaknesses": report.improvements if report.improvements else [],
+                "recommendation": report.feedback if report.feedback else "",
+                "score": report.score if report.score else 0,
+                "status": report.status,
+                "created_at": report.created_at.isoformat() if report.created_at else None,
+                "candidate_name": guest_candidate.full_name if guest_candidate else "Unknown",
+                "job_title": guest_interview.job_offer.title if guest_interview and guest_interview.job_offer else "Unknown",
+                "duration": report.duration if report.duration else "0",
+                "error_message": report.error_message
+            }
+            logger.info("Response formatted successfully")
+            return response
+        except Exception as format_error:
+            logger.error(f"Error formatting response: {str(format_error)}")
+            logger.error(traceback.format_exc())
+            raise
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in get_report_by_id: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching report: {str(e)}"
+        )
