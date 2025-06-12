@@ -130,6 +130,17 @@ def upgrade() -> None:
             sa.ForeignKeyConstraint(['job_offer_id'], ['job_offers.id'], ondelete='CASCADE'),
             sa.PrimaryKeyConstraint('id')
         )
+        
+    # Guest candidates table
+    if 'guest_candidates' not in tables:
+        op.create_table(
+            'guest_candidates',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('email', sa.String(length=255), nullable=False),
+            sa.Column('name', sa.String(length=255), nullable=True),
+            sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+            sa.PrimaryKeyConstraint('id')
+        )
     
     # Applications table
     if 'applications' not in tables:
@@ -193,16 +204,7 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint('id')
         )
     
-    # Guest candidates table
-    if 'guest_candidates' not in tables:
-        op.create_table(
-            'guest_candidates',
-            sa.Column('id', sa.Integer(), nullable=False),
-            sa.Column('email', sa.String(length=255), nullable=False),
-            sa.Column('name', sa.String(length=255), nullable=True),
-            sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-            sa.PrimaryKeyConstraint('id')
-        )
+    
     
     # Guest interviews table
     if 'guest_interviews' not in tables:
