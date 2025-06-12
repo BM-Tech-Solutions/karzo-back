@@ -21,6 +21,8 @@ from app.db.base import Base  # Import your Base
 from app.models import user   # Import your models to register them with Base
 from app.models import job_requirement
 from app.models import job
+from app.models import company  # Import company model
+from app.models import job_offer  # Import job_offer model
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

@@ -104,3 +104,183 @@ def delete_interview(db: Session, interview_id: int):
         db.commit()
         return True
     return False
+
+def count_unique_candidates_by_job_offers(db: Session, job_offer_ids: List[int]) -> int:
+    """
+    Count unique candidates who have interviews for the specified job offers
+    """
+    if not job_offer_ids:
+        return 0
+        
+    # Count distinct candidate_ids where job_offer_id is in the list
+    try:
+        result = db.query(Interview.candidate_id).distinct().filter(
+            Interview.job_offer_id.in_(job_offer_ids)
+        ).count()
+        return result
+    except Exception as e:
+        print(f"Error counting unique candidates: {e}")
+        return 0
+
+def count_pending_interviews_by_job_offers(db: Session, job_offer_ids: List[int]) -> int:
+    """
+    Count pending interviews for the specified job offers
+    """
+    if not job_offer_ids:
+        return 0
+        
+    # Count interviews with status 'pending' where job_offer_id is in the list
+    try:
+        result = db.query(Interview).filter(
+            Interview.job_offer_id.in_(job_offer_ids),
+            Interview.status == "pending"
+        ).count()
+        return result
+    except Exception as e:
+        print(f"Error counting pending interviews: {e}")
+        return 0
+
+def get_recent_applications_by_job_offers(db: Session, job_offer_ids: List[int], limit: int = 3):
+    """
+    Get recent applications (interviews) for the specified job offers
+    """
+    if not job_offer_ids:
+        return []
+    
+    try:
+        # Import here to avoid circular imports
+        from app.models.user import User
+        from app.models.job_offer import JobOffer
+        
+        # Query recent applications with candidate and job offer details
+        results = db.query(
+            Interview.id,
+            Interview.date,
+            User.full_name.label("candidate_name"),
+            JobOffer.title.label("job_title"),
+            Interview.created_at
+        ).join(
+            User, Interview.candidate_id == User.id
+        ).join(
+            JobOffer, Interview.job_offer_id == JobOffer.id
+        ).filter(
+            Interview.job_offer_id.in_(job_offer_ids)
+        ).order_by(
+            Interview.created_at.desc()
+        ).limit(limit).all()
+        
+        # Convert the results to a list of dictionaries
+        applications = []
+        for row in results:
+            days_ago = (datetime.now() - row.created_at).days if row.created_at else 0
+            application = {
+                "id": row.id,
+                "candidateName": row.candidate_name,
+                "jobTitle": row.job_title,
+                "daysAgo": days_ago
+            }
+            applications.append(application)
+        
+        return applications
+    except Exception as e:
+        print(f"Error getting recent applications: {e}")
+        return []
+
+def get_upcoming_interviews_by_job_offers(db: Session, job_offer_ids: List[int], limit: int = 3):
+    """
+    Get upcoming interviews for the specified job offers
+    """
+    if not job_offer_ids:
+        return []
+    
+    try:
+        # Import here to avoid circular imports
+        from app.models.user import User
+        from app.models.job_offer import JobOffer
+        
+        # Query upcoming interviews with candidate and job offer details
+        results = db.query(
+            Interview.id,
+            Interview.date,
+            User.full_name.label("candidate_name"),
+            JobOffer.title.label("job_title")
+        ).join(
+            User, Interview.candidate_id == User.id
+        ).join(
+            JobOffer, Interview.job_offer_id == JobOffer.id
+        ).filter(
+            Interview.job_offer_id.in_(job_offer_ids),
+            Interview.date >= datetime.now(),
+            Interview.status == "scheduled"
+        ).order_by(
+            Interview.date.asc()
+        ).limit(limit).all()
+        
+        # Convert the results to a list of dictionaries
+        interviews = []
+        for row in results:
+            interview = {
+                "id": row.id,
+                "candidateName": row.candidate_name,
+                "jobTitle": row.job_title,
+                "date": row.date.strftime("%b %d, %I:%M %p") if row.date else None
+            }
+            interviews.append(interview)
+        
+        return interviews
+    except Exception as e:
+        print(f"Error getting upcoming interviews: {e}")
+        return []
+
+def get_interviews_by_company(db: Session, company_id: int, skip: int = 0, limit: int = 100):
+    """
+    Get all interviews for a company's job offers with detailed information
+    """
+    # Import here to avoid circular imports
+    from app.models.user import User
+    from app.models.job_offer import JobOffer
+    from app.crud.job_offer import get_job_offers_by_company
+    
+    # Get all job offers for this company
+    job_offers = db.query(JobOffer).filter(JobOffer.company_id == company_id).all()
+    job_offer_ids = [job_offer.id for job_offer in job_offers]
+    
+    # If there are no job offers, return an empty list
+    if not job_offer_ids:
+        return []
+    
+    # Query for interviews with candidate and job offer details
+    results = db.query(
+        Interview.id,
+        Interview.candidate_id,
+        User.full_name.label('candidate_name'),
+        User.email.label('candidate_email'),
+        Interview.job_offer_id,
+        JobOffer.title.label('job_title'),
+        Interview.date,
+        Interview.status
+    ).join(
+        User, User.id == Interview.candidate_id
+    ).join(
+        JobOffer, JobOffer.id == Interview.job_offer_id
+    ).filter(
+        JobOffer.company_id == company_id
+    ).all()
+    
+    # Convert the results to a list of dictionaries
+    interviews = []
+    for row in results:
+        interview = {
+            "id": row.id,
+            "candidateId": row.candidate_id,
+            "candidateName": row.candidate_name,
+            "candidateEmail": row.candidate_email,
+            "jobOfferId": row.job_offer_id,
+            "jobTitle": row.job_title,
+            "date": row.date.isoformat() if row.date else None,
+            "formattedDate": row.date.strftime("%b %d, %Y at %I:%M %p") if row.date else "Not scheduled",
+            "status": row.status
+        }
+        interviews.append(interview)
+    
+    return interviews

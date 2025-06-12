@@ -7,6 +7,7 @@ openai
 psycopg2-binary
 pydantic[email]
 pydantic
+pydantic-settings
 python-dotenv
 python-jose
 python-multipart
