@@ -67,6 +67,7 @@ def upgrade() -> None:
             sa.Column('title', sa.String(length=255), nullable=False),
             sa.Column('description', sa.Text(), nullable=False),
             sa.Column('company_id', sa.Integer(), nullable=False),
+            sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
             sa.Column('status', sa.String(length=50), nullable=False, server_default='active'),
             sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
             sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
