@@ -24,8 +24,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT}
-      SEED_ADMIN: "true"  # Set to "true" to seed admin user on first run
-      SEED_JOBS: "false"  # Set to "true" to seed job data on first run
+      
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     volumes:
       - ./app:/app/app
