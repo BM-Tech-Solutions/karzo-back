@@ -12,8 +12,8 @@ COPY seed_admin.py .
 COPY seed_jobs.py .
 COPY entrypoint.sh .
 
-# Make the entrypoint script executable
-RUN chmod +x entrypoint.sh
+# Fix line endings and make the entrypoint script executable
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 
 # Use the entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"]
