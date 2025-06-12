@@ -59,6 +59,19 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint('id')
         )
     
+    # Jobs table
+    if 'jobs' not in tables:
+        op.create_table(
+            'jobs',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('title', sa.String(length=255), nullable=False, index=True),
+            sa.Column('company', sa.String(length=255), nullable=False, index=True),
+            sa.Column('location', sa.String(length=255), nullable=True, index=True),
+            sa.Column('description', sa.Text(), nullable=True),
+            sa.Column('posted_date', sa.Date(), server_default=sa.text('now()'), nullable=False),
+            sa.PrimaryKeyConstraint('id')
+        )
+        
     # Job offers table
     if 'job_offers' not in tables:
         op.create_table(
@@ -103,6 +116,7 @@ def upgrade() -> None:
             'invitations',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('email', sa.String(length=255), nullable=False),
+            sa.Column('candidate_email', sa.String(length=255), nullable=False),
             sa.Column('company_id', sa.Integer(), nullable=False),
             sa.Column('job_offer_id', sa.Integer(), nullable=False),
             sa.Column('token', sa.String(length=255), nullable=False),
@@ -110,6 +124,8 @@ def upgrade() -> None:
             sa.Column('status', sa.String(length=50), nullable=False, server_default='pending'),
             sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
             sa.Column('expires_at', sa.DateTime(), nullable=True),
+            sa.Column('resend_count', sa.Integer(), nullable=False, server_default='0'),
+            sa.Column('last_sent_at', sa.DateTime(), nullable=True),
             sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
             sa.ForeignKeyConstraint(['job_offer_id'], ['job_offers.id'], ondelete='CASCADE'),
             sa.PrimaryKeyConstraint('id')
@@ -120,12 +136,21 @@ def upgrade() -> None:
         op.create_table(
             'applications',
             sa.Column('id', sa.Integer(), nullable=False),
-            sa.Column('job_offer_id', sa.Integer(), nullable=False),
-            sa.Column('user_id', sa.Integer(), nullable=False),
+            sa.Column('name', sa.String(length=255), nullable=False),
+            sa.Column('email', sa.String(length=255), nullable=False),
+            sa.Column('phone', sa.String(length=50), nullable=True),
+            sa.Column('cover_letter', sa.Text(), nullable=True),
+            sa.Column('resume_path', sa.String(length=255), nullable=True),
             sa.Column('status', sa.String(length=50), nullable=False, server_default='pending'),
             sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+            sa.Column('company_id', sa.Integer(), nullable=False),
+            sa.Column('job_offer_id', sa.Integer(), nullable=True),
+            sa.Column('invitation_id', sa.Integer(), nullable=True),
+            sa.Column('guest_candidate_id', sa.Integer(), nullable=True),
+            sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
             sa.ForeignKeyConstraint(['job_offer_id'], ['job_offers.id'], ondelete='CASCADE'),
-            sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+            sa.ForeignKeyConstraint(['invitation_id'], ['invitations.id'], ondelete='SET NULL'),
+            sa.ForeignKeyConstraint(['guest_candidate_id'], ['guest_candidates.id'], ondelete='SET NULL'),
             sa.PrimaryKeyConstraint('id')
         )
     
@@ -134,14 +159,17 @@ def upgrade() -> None:
         op.create_table(
             'interviews',
             sa.Column('id', sa.Integer(), nullable=False),
-            sa.Column('job_offer_id', sa.Integer(), nullable=False),
-            sa.Column('candidate_id', sa.Integer(), nullable=False),
+            sa.Column('candidate_id', sa.Integer(), nullable=True),
+            sa.Column('job_id', sa.Integer(), nullable=True),
+            sa.Column('job_offer_id', sa.Integer(), nullable=True),
+            sa.Column('date', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+            sa.Column('status', sa.String(length=50), nullable=False, server_default='completed'),
+            sa.Column('feedback', sa.Text(), nullable=True),
+            sa.Column('score', sa.Integer(), nullable=True),
             sa.Column('conversation_id', sa.String(length=255), nullable=True),
-            sa.Column('status', sa.String(length=50), nullable=False, server_default='pending'),
-            sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-            sa.Column('completed_at', sa.DateTime(), nullable=True),
-            sa.Column('report_id', sa.Integer(), nullable=True),
+            sa.Column('report_id', sa.String(length=255), nullable=True),
             sa.ForeignKeyConstraint(['candidate_id'], ['users.id'], ondelete='CASCADE'),
+            sa.ForeignKeyConstraint(['job_id'], ['jobs.id'], ondelete='CASCADE'),
             sa.ForeignKeyConstraint(['job_offer_id'], ['job_offers.id'], ondelete='CASCADE'),
             sa.PrimaryKeyConstraint('id')
         )
@@ -243,6 +271,8 @@ def downgrade() -> None:
         op.drop_table('job_requirements')
     if 'job_offers' in tables:
         op.drop_table('job_offers')
+    if 'jobs' in tables:
+        op.drop_table('jobs')
     if 'companies' in tables:
         op.drop_table('companies')
     if 'users' in tables:
