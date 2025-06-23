@@ -9,7 +9,9 @@ pydantic[email]
 pydantic
 pydantic-settings
 python-dotenv
+python-docx
 python-jose
 python-multipart
+PyPDF2
 passlib[bcrypt]
 requests

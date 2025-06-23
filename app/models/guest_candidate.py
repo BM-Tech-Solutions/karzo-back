@@ -15,6 +15,7 @@ class GuestCandidate(Base):
     full_name = Column(String, nullable=False)
     phone = Column(String, nullable=True)
     resume_url = Column(String, nullable=True)
+    candidate_summary = Column(Text, nullable=True)  # Summary generated from CV
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -41,6 +42,7 @@ class GuestInterview(Base):
     conversation_id = Column(String, nullable=True)
     report_id = Column(String, nullable=True)
     report_status = Column(String, nullable=True)
+    candidate_summary = Column(Text, nullable=True)  # Summary for ElevenLabs interview
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships

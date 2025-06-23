@@ -1,6 +1,9 @@
 import os
 import json
 import httpx
+import PyPDF2
+import docx
+import io
 from typing import Dict, Any, List, Optional
 import dotenv
 
@@ -9,6 +12,106 @@ dotenv.load_dotenv()
 # OpenAI API configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
+
+async def extract_text_from_cv(file_path: str) -> str:
+    """
+    Extract text from a CV file (PDF or DOCX)
+    
+    Args:
+        file_path: Path to the CV file
+        
+    Returns:
+        Extracted text from the CV
+    """
+    try:
+        # Check file extension
+        file_extension = file_path.split('.')[-1].lower()
+        
+        if file_extension == 'pdf':
+            # Extract text from PDF
+            with open(file_path, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                text = ''
+                for page in pdf_reader.pages:
+                    text += page.extract_text() + '\n'
+                return text
+                
+        elif file_extension == 'docx':
+            # Extract text from DOCX
+            doc = docx.Document(file_path)
+            text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
+            return text
+            
+        else:
+            return f"Unsupported file format: {file_extension}"
+            
+    except Exception as e:
+        print(f"Error extracting text from CV: {str(e)}")
+        return f"Error extracting text: {str(e)}"
+
+
+async def generate_candidate_summary(cv_text: str) -> str:
+    """
+    Generate a summary of the candidate from their CV text using OpenAI GPT-4o mini
+    
+    Args:
+        cv_text: Extracted text from the candidate's CV
+        
+    Returns:
+        A concise summary of the candidate
+    """
+    if not OPENAI_API_KEY:
+        raise ValueError("OpenAI API key is not configured")
+    
+    # Prepare the prompt for OpenAI
+    prompt = f"""
+    Summarize this candidate in one paragraph, highlighting their education, current role and key responsibilities, 
+    technical expertise, notable projects, certifications, and overall value proposition as a professional. 
+    Focus on their strengths and what makes them a compelling candidate without mentioning specific timeframes 
+    or duration of experience.
+    
+    CV Content:
+    {cv_text}
+    """
+    
+    # Prepare the request to OpenAI
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {OPENAI_API_KEY}"
+    }
+    
+    payload = {
+        "model": "gpt-4o-mini",  # Using GPT-4o mini for efficiency and cost
+        "messages": [
+            {"role": "system", "content": "You are an expert HR assistant that summarizes candidate profiles."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.3,  # Lower temperature for more consistent outputs
+        "max_tokens": 300   # Limit to a concise summary
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                OPENAI_API_URL,
+                headers=headers,
+                json=payload,
+                timeout=30.0
+            )
+            
+            if response.status_code != 200:
+                raise Exception(f"OpenAI API error: {response.status_code} - {response.text}")
+            
+            result = response.json()
+            content = result["choices"][0]["message"]["content"]
+            
+            return content.strip()
+                
+    except Exception as e:
+        print(f"Error generating candidate summary with OpenAI: {str(e)}")
+        # Return a default response in case of error
+        return "Unable to generate candidate summary due to processing error."
+
 
 async def generate_report_from_summary(summary: str) -> Dict[str, Any]:
     """

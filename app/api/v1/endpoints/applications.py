@@ -13,6 +13,7 @@ from app.models.application import Application
 from app.models.company import Company
 from app.models.guest_candidate import GuestCandidate, GuestInterview
 from app.core.config import settings
+from app.utils.openai_helper import extract_text_from_cv, generate_candidate_summary
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -74,6 +75,7 @@ async def submit_application_with_token(
     
     # Handle resume upload if provided
     resume_path = None
+    candidate_summary = None
     if resume:
         try:
             # Create a unique filename
@@ -90,6 +92,21 @@ async def submit_application_with_token(
                 buffer.write(await resume.read())
                 
             logger.info(f"Resume saved to {resume_path}")
+            
+            # Extract text from CV and generate candidate summary
+            try:
+                logger.info(f"Extracting text from CV: {resume_path}")
+                cv_text = await extract_text_from_cv(resume_path)
+                
+                if cv_text and len(cv_text) > 100:  # Ensure we have enough text to analyze
+                    logger.info(f"Generating candidate summary from CV text")
+                    candidate_summary = await generate_candidate_summary(cv_text)
+                    logger.info(f"Generated candidate summary: {candidate_summary[:100]}...")
+                else:
+                    logger.warning(f"Insufficient text extracted from CV: {cv_text[:100]}")
+            except Exception as e:
+                logger.error(f"Error processing CV for summary: {str(e)}")
+                # Continue with application process even if summary generation fails
         except Exception as e:
             logger.error(f"Error saving resume: {str(e)}")
             resume_path = None
@@ -105,6 +122,7 @@ async def submit_application_with_token(
                 full_name=name,
                 phone=phone,
                 resume_url=resume_path,
+                candidate_summary=candidate_summary,  # Add the candidate summary
                 created_at=datetime.now()
             )
             db.add(guest_candidate)
@@ -135,7 +153,8 @@ async def submit_application_with_token(
             created_at=datetime.now(),
             conversation_id=None,  # Will be set when the actual ElevenLabs conversation starts
             report_id=None,
-            report_status=None
+            report_status=None,
+            candidate_summary=candidate_summary  # Add the candidate summary for ElevenLabs
         )
         
         # Update invitation status

@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import Dict, Any, Optional
-import logging
+from typing import Dict, Any, List, Optional
 import requests
+import logging
 import os
 from datetime import datetime
 
@@ -219,6 +221,84 @@ def generate_guest_interview_report(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate report: {str(e)}"
         )
+
+
+@router.get("/guest-interviews/{interview_id}/summary", response_model=Dict[str, Any])
+def get_guest_interview_summary(interview_id: int, request: Request, db: Session = Depends(get_db)):
+    """
+    Get the candidate summary for a guest interview.
+    This endpoint is used by the frontend to fetch the candidate summary for ElevenLabs.
+    """
+    # Log the request method and headers for debugging
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"Request headers: {dict(request.headers)}")
+    
+    try:
+        # Convert string ID to integer if needed
+        if isinstance(interview_id, str):
+            interview_id = int(interview_id)
+        
+        logger.info(f"Fetching candidate summary for interview ID: {interview_id}")
+            
+        # Find the guest interview
+        guest_interview = guest_interview_crud.get_guest_interview_by_id(db, interview_id=interview_id)
+        if not guest_interview:
+            logger.error(f"Guest interview with ID {interview_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Guest interview with ID {interview_id} not found"
+            )
+        
+        # Get the candidate summary from the interview or from the guest candidate
+        candidate_summary = guest_interview.candidate_summary
+        logger.info(f"Candidate summary from interview: {candidate_summary[:100] if candidate_summary else None}")
+        
+        # If not found in the interview, try to get it from the guest candidate
+        if not candidate_summary and guest_interview.guest_candidate:
+            candidate_summary = guest_interview.guest_candidate.candidate_summary
+            logger.info(f"Candidate summary from guest candidate: {candidate_summary[:100] if candidate_summary else None}")
+        
+        response_data = {
+            "interview_id": interview_id,
+            "candidate_summary": candidate_summary or "No candidate summary available."
+        }
+        
+        logger.info(f"Returning candidate summary response: {response_data['candidate_summary'][:100]}...")
+        
+        # Create a JSONResponse with explicit CORS headers
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error fetching candidate summary: {str(e)}")
+        error_response = JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": f"Failed to fetch candidate summary: {str(e)}"}
+        )
+        error_response.headers["Access-Control-Allow-Origin"] = "*"
+        error_response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        error_response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+        
+        return error_response
+
+
+@router.options("/guest-interviews/{interview_id}/summary")
+def options_guest_interview_summary(interview_id: int):
+    """
+    Handle OPTIONS requests for the guest interview summary endpoint.
+    This is needed for CORS preflight requests.
+    """
+    response = JSONResponse(content={})
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+    response.headers["Access-Control-Max-Age"] = "86400"  # 24 hours cache for preflight requests
+    
+    return response
 
 
 def fetch_elevenlabs_conversation(conversation_id: str) -> Optional[Dict[str, Any]]:
