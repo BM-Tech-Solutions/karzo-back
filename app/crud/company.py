@@ -12,6 +12,9 @@ def get_company_by_email(db: Session, email: str):
 def get_company_by_id(db: Session, company_id: int):
     return db.query(Company).filter(Company.id == company_id).first()
 
+def get_company_by_name(db: Session, name: str):
+    return db.query(Company).filter(Company.name == name).first()
+
 def get_companies(db: Session, skip: int = 0, limit: int = 100):
     return db.query(Company).offset(skip).limit(limit).all()
 

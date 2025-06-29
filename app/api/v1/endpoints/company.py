@@ -13,6 +13,7 @@ from app.crud import guest_interview as guest_interview_crud
 from app.crud import guest_report as guest_report_crud
 from app.models import guest_report
 from app.models.company import Company
+from app.crud import company as company_crud
 from app.schemas.company import CompanyRead, CompanyUpdate
 from app.schemas.candidate import CandidateRead
 
@@ -24,6 +25,23 @@ def read_company_me(current_company: Company = Depends(get_current_company)):
     Get current company information.
     """
     return current_company
+
+@router.get("/details", response_model=CompanyRead)
+async def get_company_details(
+    name: str = Query(..., description="Name of the company to fetch details for"),
+    db: Session = Depends(get_db),
+):
+    """
+    Get company details by company name.
+    This endpoint is public and doesn't require authentication.
+    """
+    company = company_crud.get_company_by_name(db, name=name)
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+    return company
 
 @router.put("/me", response_model=CompanyRead)
 def update_company_me(
