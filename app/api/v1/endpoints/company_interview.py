@@ -18,7 +18,7 @@ from app.models.company import Company
 from app.models.job_offer import JobOffer
 
 # ElevenLabs API key - in production, this should be in environment variables
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_ea6029e786262953f2b36eeb63ab1d1908470c0e48a2f3d0")
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
 router = APIRouter()
 
