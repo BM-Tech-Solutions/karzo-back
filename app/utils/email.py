@@ -119,16 +119,18 @@ def send_invitation_email(
     job_title: Optional[str] = None,
     invitation_link: str = "",
     message: Optional[str] = None,
+    external_company_info: Optional[dict] = None,
 ) -> bool:
     """
     Send an invitation email to a candidate
     
     Args:
         email_to: Candidate email address
-        company_name: Name of the company sending the invitation
+        company_name: Name of the company sending the invitation (or external company name)
         job_title: Title of the job position (optional)
         invitation_link: Link to accept the invitation
         message: Custom message from the recruiter (optional)
+        external_company_info: Additional company information for external companies (optional)
         
     Returns:
         bool: True if email was sent successfully, False otherwise
@@ -138,6 +140,31 @@ def send_invitation_email(
     # Create HTML content
     position_text = f" for the {job_title} position" if job_title else ""
     custom_message = f"<p>{message}</p>" if message else ""
+    
+    # Add external company information if provided
+    company_info_section = ""
+    if external_company_info:
+        company_details = []
+        if external_company_info.get('email'):
+            company_details.append(f"Email: {external_company_info['email']}")
+        if external_company_info.get('website'):
+            company_details.append(f"Website: {external_company_info['website']}")
+        if external_company_info.get('size'):
+            company_details.append(f"Company Size: {external_company_info['size']}")
+        if external_company_info.get('sector'):
+            company_details.append(f"Industry: {external_company_info['sector']}")
+        if external_company_info.get('about'):
+            company_details.append(f"About: {external_company_info['about']}")
+        
+        if company_details:
+            company_info_section = f"""
+            <div style="background-color: #f8f9fa; padding: 15px; margin: 15px 0; border-radius: 5px;">
+                <h4 style="margin-top: 0;">Company Information:</h4>
+                <ul style="margin-bottom: 0;">
+                    {''.join([f'<li>{detail}</li>' for detail in company_details])}
+                </ul>
+            </div>
+            """
     
     html_content = f"""
     <html>
@@ -161,6 +188,7 @@ def send_invitation_email(
                     <p>Hello,</p>
                     <p>{company_name} has invited you to apply{position_text} on Karzo.</p>
                     {custom_message}
+                    {company_info_section}
                     <p>Click the button below to complete your application:</p>
                     <p><a href="{invitation_link}" class="button">Apply Now</a></p>
                     <p>If you have any questions, please reply to this email.</p>
