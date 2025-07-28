@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 class InvitationBase(BaseModel):
@@ -9,11 +9,25 @@ class InvitationBase(BaseModel):
 
 class InvitationCreate(InvitationBase):
     job_offer_id: Optional[int] = None
+    # External company information (when inviting for another company)
+    external_company_name: Optional[str] = None
+    external_company_email: Optional[EmailStr] = None
+    external_company_size: Optional[str] = None
+    external_company_sector: Optional[str] = None
+    external_company_about: Optional[str] = None
+    external_company_website: Optional[str] = None
 
 class InvitationBulkCreate(BaseModel):
     emails: list[str]
     job_offer_id: Optional[int] = None
     message: Optional[str] = None
+    # External company information (when inviting for another company)
+    external_company_name: Optional[str] = None
+    external_company_email: Optional[EmailStr] = None
+    external_company_size: Optional[str] = None
+    external_company_sector: Optional[str] = None
+    external_company_about: Optional[str] = None
+    external_company_website: Optional[str] = None
 
 class InvitationUpdate(BaseModel):
     status: Optional[str] = None
@@ -41,10 +55,18 @@ class InvitationPublic(BaseModel):
     company_name: str
     job_offer_id: Optional[int] = None
     job_title: Optional[str] = None
+    job_questions: List[str] = []
     status: str
     candidate_email: str
     message: Optional[str] = None
     expires_at: datetime
+    # External company fields
+    external_company_name: Optional[str] = None
+    external_company_email: Optional[str] = None
+    external_company_size: Optional[str] = None
+    external_company_sector: Optional[str] = None
+    external_company_about: Optional[str] = None
+    external_company_website: Optional[str] = None
     
     class Config:
         orm_mode = True

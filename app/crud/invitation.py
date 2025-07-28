@@ -89,7 +89,14 @@ def create_invitation(
             expires_at=expires_at,
             token=token,
             message=invitation_in.message,
-            last_sent_at=now
+            last_sent_at=now,
+            # External company fields
+            external_company_name=invitation_in.external_company_name,
+            external_company_email=invitation_in.external_company_email,
+            external_company_size=invitation_in.external_company_size,
+            external_company_sector=invitation_in.external_company_sector,
+            external_company_about=invitation_in.external_company_about,
+            external_company_website=invitation_in.external_company_website
         )
         
         logger.debug(f"Adding invitation to database: {invitation.email}")
@@ -113,15 +120,34 @@ def create_invitation(
         invitation_link = f"{settings.FRONTEND_URL}/invitation/{token}"
         logger.debug(f"Generated application link: {invitation_link}")
         
+        # Determine company name and prepare external company info
+        effective_company_name = company_name
+        external_company_info = None
+        
+        # If external company information is provided, use it
+        if invitation_in.external_company_name:
+            effective_company_name = invitation_in.external_company_name
+            external_company_info = {
+                'email': invitation_in.external_company_email,
+                'website': invitation_in.external_company_website,
+                'size': invitation_in.external_company_size,
+                'sector': invitation_in.external_company_sector,
+                'about': invitation_in.external_company_about
+            }
+            # Remove None values
+            external_company_info = {k: v for k, v in external_company_info.items() if v is not None}
+            logger.info(f"Using external company: {effective_company_name}")
+        
         # Send invitation email
         logger.info(f"Attempting to send invitation email to: {invitation.email}")
         try:
             email_sent = send_invitation_email(
                 email_to=invitation.email,
-                company_name=company_name,
+                company_name=effective_company_name,
                 job_title=job_title,
                 invitation_link=invitation_link,
-                message=invitation.message
+                message=invitation.message,
+                external_company_info=external_company_info if external_company_info else None
             )
             
             if email_sent:
@@ -172,6 +198,24 @@ def create_bulk_invitations(
         if job_offer:
             job_title = job_offer.title
     
+    # Determine company name and prepare external company info
+    effective_company_name = company_name
+    external_company_info = None
+    
+    # If external company information is provided, use it
+    if bulk_invitation.external_company_name:
+        effective_company_name = bulk_invitation.external_company_name
+        external_company_info = {
+            'email': bulk_invitation.external_company_email,
+            'website': bulk_invitation.external_company_website,
+            'size': bulk_invitation.external_company_size,
+            'sector': bulk_invitation.external_company_sector,
+            'about': bulk_invitation.external_company_about
+        }
+        # Remove None values
+        external_company_info = {k: v for k, v in external_company_info.items() if v is not None}
+        logger.info(f"Using external company for bulk invitations: {effective_company_name}")
+    
     results = []
     for email in bulk_invitation.emails:
         # Generate a secure token for the invitation link
@@ -199,10 +243,11 @@ def create_bulk_invitations(
         # Send invitation email
         send_invitation_email(
             email_to=email,
-            company_name=company_name,
+            company_name=effective_company_name,
             job_title=job_title,
             invitation_link=invitation_link,
-            message=bulk_invitation.message
+            message=bulk_invitation.message,
+            external_company_info=external_company_info if external_company_info else None
         )
         
         results.append({

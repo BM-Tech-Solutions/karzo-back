@@ -18,6 +18,14 @@ class Invitation(Base):
     resend_count = Column(Integer, default=0)
     last_sent_at = Column(DateTime, nullable=True)
     
+    # External company fields
+    external_company_name = Column(String, nullable=True)
+    external_company_email = Column(String, nullable=True)
+    external_company_size = Column(String, nullable=True)
+    external_company_sector = Column(String, nullable=True)
+    external_company_about = Column(Text, nullable=True)
+    external_company_website = Column(String, nullable=True)
+    
     # Relationships
     company = relationship("Company", back_populates="invitations")
     job_offer = relationship("JobOffer", back_populates="invitations")

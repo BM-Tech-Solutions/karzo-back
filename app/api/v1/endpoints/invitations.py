@@ -218,12 +218,19 @@ def get_public_invitation(
     company = db.query(Company).filter(Company.id == invitation.company_id).first()
     company_name = company.name if company else ""
     
-    # Get job title if job_offer_id is provided
+    # Get job title and questions if job_offer_id is provided
     job_title = None
+    job_questions = []
     if invitation.job_offer_id:
         job_offer = db.query(JobOffer).filter(JobOffer.id == invitation.job_offer_id).first()
         if job_offer:
             job_title = job_offer.title
+            # Get job questions
+            job_questions = [q.question for q in job_offer.questions]
+    
+    # Debug logging for external company fields
+    print(f"DEBUG: External company name: {getattr(invitation, 'external_company_name', 'ATTR_NOT_FOUND')}")
+    print(f"DEBUG: External company email: {getattr(invitation, 'external_company_email', 'ATTR_NOT_FOUND')}")
     
     return {
         "id": invitation.id,
@@ -232,10 +239,18 @@ def get_public_invitation(
         "company_name": company_name,
         "job_offer_id": invitation.job_offer_id,
         "job_title": job_title,
+        "job_questions": job_questions,
         "status": invitation.status,
         "candidate_email": invitation.candidate_email,
         "message": invitation.message,
-        "expires_at": invitation.expires_at
+        "expires_at": invitation.expires_at,
+        # External company fields (with safe attribute access)
+        "external_company_name": getattr(invitation, 'external_company_name', None),
+        "external_company_email": getattr(invitation, 'external_company_email', None),
+        "external_company_size": getattr(invitation, 'external_company_size', None),
+        "external_company_sector": getattr(invitation, 'external_company_sector', None),
+        "external_company_about": getattr(invitation, 'external_company_about', None),
+        "external_company_website": getattr(invitation, 'external_company_website', None)
     }
 
 @router.get("/debug/{token}")
