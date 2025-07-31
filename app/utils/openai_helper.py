@@ -52,44 +52,83 @@ async def extract_text_from_cv(file_path: str) -> str:
 
 async def generate_candidate_summary(cv_text: str) -> str:
     """
-    Generate a summary of the candidate from their CV text using OpenAI GPT-4o mini
-    
+    Generate a structured analysis report of the candidate from their CV text using OpenAI GPT-4o mini
+   
     Args:
         cv_text: Extracted text from the candidate's CV
-        
+       
     Returns:
-        A concise summary of the candidate
+        A structured analysis report following the specified format
     """
     if not OPENAI_API_KEY:
         raise ValueError("OpenAI API key is not configured")
-    
+   
     # Prepare the prompt for OpenAI
     prompt = f"""
-    Summarize this candidate in one paragraph, highlighting their education, current role and key responsibilities, 
-    technical expertise, notable projects, certifications, and overall value proposition as a professional. 
-    Focus on their strengths and what makes them a compelling candidate without mentioning specific timeframes 
-    or duration of experience.
-    
+    Analysez le CV fourni et générez un rapport structuré selon le format suivant :
+
+    **RAPPORT D'ANALYSE DE CV**
+
+    **Candidat :** [Nom du candidat]
+    **Poste visé :** [Si mentionné dans le CV, sinon "Non spécifié"]
+    **Date d'analyse :** [Date du jour]
+
+    ## POINTS FORTS
+
+    Identifiez et listez 5-7 points forts majeurs du candidat basés sur :
+    • Expériences professionnelles pertinentes
+    • Compétences techniques et soft skills
+    • Formation et certifications
+    • Réalisations et résultats quantifiables
+    • Évolution de carrière
+    • Éléments différenciants
+
+    Format : Rédigez chaque point fort en 1-2 phrases explicatives avec des puces (•)
+
+    ## POINTS À VÉRIFIER
+
+    Générez exactement 3 questions stratégiques à poser au candidat lors d'un entretien pour :
+    • Clarifier des zones d'ombre du CV
+    • Vérifier la véracité de certaines affirmations
+    • Approfondir des aspects critiques pour le poste
+    • Évaluer des compétences non démontrées clairement
+
+    Format des questions (sans mention d'objectif) :
+    1. **[Question 1]**
+    2. **[Question 2]**
+    3. **[Question 3]**
+
+    ## SYNTHÈSE
+
+    Rédigez un paragraphe de synthèse (3-4 phrases) résumant le profil global du candidat et sa pertinence potentielle.
+
+    Instructions :
+    - Restez factuel et objectif
+    - Basez-vous uniquement sur les informations présentes dans le CV
+    - Évitez les suppositions non fondées
+    - Utilisez un ton professionnel et bienveillant
+    - Utilisez la date d'aujourd'hui pour "Date d'analyse"
+
     CV Content:
     {cv_text}
     """
-    
+   
     # Prepare the request to OpenAI
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {OPENAI_API_KEY}"
     }
-    
+   
     payload = {
-        "model": "gpt-4o-mini",  # Using GPT-4o mini for efficiency and cost
+        "model": "gpt-4o-mini",
         "messages": [
-            {"role": "system", "content": "You are an expert HR assistant that summarizes candidate profiles."},
+            {"role": "system", "content": "Vous êtes un expert en ressources humaines chargé d'évaluer des CV de candidats. Votre mission est de fournir une analyse objective et constructive du profil présenté selon le format demandé."},
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.3,  # Lower temperature for more consistent outputs
-        "max_tokens": 300   # Limit to a concise summary
+        "max_tokens": 1500   # Increased for the detailed structured report
     }
-    
+   
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -98,19 +137,19 @@ async def generate_candidate_summary(cv_text: str) -> str:
                 json=payload,
                 timeout=30.0
             )
-            
+           
             if response.status_code != 200:
                 raise Exception(f"OpenAI API error: {response.status_code} - {response.text}")
-            
+           
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-            
+           
             return content.strip()
-                
+               
     except Exception as e:
-        print(f"Error generating candidate summary with OpenAI: {str(e)}")
+        print(f"Error generating candidate analysis with OpenAI: {str(e)}")
         # Return a default response in case of error
-        return "Unable to generate candidate summary due to processing error."
+        return "Unable to generate candidate analysis due to processing error."
 
 
 async def generate_report_from_summary(summary: str) -> Dict[str, Any]:
