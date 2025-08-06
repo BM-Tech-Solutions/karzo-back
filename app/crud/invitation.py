@@ -104,6 +104,7 @@ def create_invitation(
             tts_stability=invitation_in.tts_stability,
             tts_speed=invitation_in.tts_speed,
             tts_similarity_boost=invitation_in.tts_similarity_boost
+
         )
         
         logger.debug(f"Adding invitation to database: {invitation.email}")

@@ -26,7 +26,6 @@ class Invitation(Base):
     tts_stability = Column(Float, nullable=True)    # Voice stability (0-1)
     tts_speed = Column(Float, nullable=True)        # Speaking speed (0.25-4.0)
     tts_similarity_boost = Column(Float, nullable=True)  # Voice similarity (0-1)
-    
     # External company fields
     external_company_name = Column(String, nullable=True)
     external_company_email = Column(String, nullable=True)
