@@ -96,7 +96,15 @@ def create_invitation(
             external_company_size=invitation_in.external_company_size,
             external_company_sector=invitation_in.external_company_sector,
             external_company_about=invitation_in.external_company_about,
-            external_company_website=invitation_in.external_company_website
+            external_company_website=invitation_in.external_company_website,
+            # Language field
+            language=invitation_in.language,
+            # TTS parameters
+            tts_temperature=invitation_in.tts_temperature,
+            tts_stability=invitation_in.tts_stability,
+            tts_speed=invitation_in.tts_speed,
+            tts_similarity_boost=invitation_in.tts_similarity_boost
+
         )
         
         logger.debug(f"Adding invitation to database: {invitation.email}")
@@ -232,7 +240,21 @@ def create_bulk_invitations(
             expires_at=expires_at,
             token=token,
             message=bulk_invitation.message,
-            last_sent_at=now
+            last_sent_at=now,
+            # External company fields
+            external_company_name=bulk_invitation.external_company_name,
+            external_company_email=bulk_invitation.external_company_email,
+            external_company_size=bulk_invitation.external_company_size,
+            external_company_sector=bulk_invitation.external_company_sector,
+            external_company_about=bulk_invitation.external_company_about,
+            external_company_website=bulk_invitation.external_company_website,
+            # Language field
+            language=bulk_invitation.language,
+            # TTS parameters
+            tts_temperature=bulk_invitation.tts_temperature,
+            tts_stability=bulk_invitation.tts_stability,
+            tts_speed=bulk_invitation.tts_speed,
+            tts_similarity_boost=bulk_invitation.tts_similarity_boost
         )
         
         db.add(invitation)

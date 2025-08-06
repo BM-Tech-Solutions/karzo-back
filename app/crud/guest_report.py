@@ -111,6 +111,7 @@ def create_or_update_guest_report(
         openai_report = asyncio.run(generate_report_from_summary(summary))
         
         # Extract data from OpenAI response
+        report_content = openai_report.get("report_content", "")
         strengths = openai_report.get("strengths", [])
         improvements = openai_report.get("weaknesses", [])
         feedback = openai_report.get("recommendation", "")
@@ -145,6 +146,7 @@ def create_or_update_guest_report(
         # Update existing report
         existing_report.transcript = transcript
         existing_report.transcript_summary = summary
+        existing_report.report_content = report_content if 'report_content' in locals() else feedback
         existing_report.score = score
         existing_report.feedback = feedback
         existing_report.strengths = strengths
@@ -172,6 +174,7 @@ def create_or_update_guest_report(
             conversation_id=interview.conversation_id if interview else None,
             transcript=transcript,
             transcript_summary=summary,
+            report_content=report_content if 'report_content' in locals() else feedback,
             score=score,
             feedback=feedback,
             strengths=strengths,

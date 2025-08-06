@@ -171,28 +171,100 @@ async def generate_report_from_summary(summary: str) -> Dict[str, Any]:
     
     # Prepare the prompt for OpenAI
     prompt = f"""
-    Based on the following interview summary, generate a detailed candidate evaluation report.
-    The report should be factual and based only on the information provided in the summary.
-    Do not invent or assume information not present in the summary.
-    
-    Interview Summary:
+    Vous êtes un consultant RH expérimenté chargé de rédiger un rapport d'évaluation professionnel basé sur une transcription d'entretien. Analysez la transcription fournie et produisez un rapport structuré suivant ce format exact :
+
+    ## Structure du Rapport
+
+    ### En-tête
+     **Rapport d'évaluation**
+    - **Candidat** : [Nom Prénom]
+    - **Poste visé** : [Intitulé du poste]
+    - **Expérience totale** : [Durée totale + détail stages/professionnel]
+    - **Score global** : [Notation sur 5 étoiles avec note décimale]
+
+    ### Section Présélection
+    **Vérifications effectuées**
+    - Listez les points du CV nécessitant des clarifications
+    - Pour chaque point : problème identifié → confirmation/clarification obtenue
+    - Utilisez des puces avec format : **[Entreprise/Élément]** : Description du problème → **Résolution**
+
+    **Disponibilité**
+    - Disponibilité immédiate ou date de prise de poste
+
+    **Prétention salariale**
+    - Fourchette mentionnée avec devise et conditions
+
+    **Autres réponses sur les questions spécifiées par le recruteur**
+    - Questions spécifiques posées et réponses obtenues
+
+    ### Section Évaluation
+
+    **Points forts**
+    Organisez en catégories :
+    - **Formation** : Diplômes, établissements, années
+    - **Expériences professionnelles** : 
+      - Liste des entreprises avec durées
+      - Missions réalisées (sous-puces)
+    - **Compétences techniques** : Outils, logiciels, certifications
+    - **Langues** : Niveau de maîtrise
+    - **Posture** : Qualités comportementales et motivation
+
+    **Points faibles**
+    - Identifiez 3-4 axes d'amélioration principaux
+    - **[Titre du point faible]** : Explication détaillée
+    - Soyez factuel et constructif
+
+    **Recommandation**
+    - **Synthèse du profil** en une phrase
+    - Recommandation d'action (rencontrer, passer à l'étape suivante, etc.)
+    - **Conditions recommandées** (niveau de poste, accompagnement nécessaire)
+    - Justification de la recommandation
+
+    ## Instructions d'Analyse
+
+    1. **Extraction d'informations** :
+       - Identifiez les informations factuelles (formations, expériences, compétences)
+       - Repérez les clarifications apportées aux zones floues du CV
+       - Notez les attentes salariales et disponibilité
+
+    2. **Évaluation qualitative** :
+       - Analysez la cohérence du parcours
+       - Évaluez l'adéquation poste/profil
+       - Identifiez les forces et axes d'amélioration
+       - Estimez le potentiel d'évolution
+
+    3. **Attribution du score** :
+       - 5/5 : Profil excellent, parfaite adéquation
+       - 4/5 : Très bon profil, quelques ajustements mineurs
+       - 3/5 : Profil correct, potentiel avec accompagnement
+       - 2/5 : Profil faible, écarts significatifs
+       - 1/5 : Inadéquation majeure
+
+    4. **Recommandation finale** :
+       - Basez-vous sur l'analyse globale
+       - Proposez des actions concrètes
+       - Mentionnez les conditions de réussite
+
+    ## Ton et Style
+
+    - **Professionnel et objectif**
+    - **Factuel et précis**
+    - **Constructif dans les critiques**
+    - **Format standardisé** pour faciliter la comparaison entre candidats
+    - **Utilisez le gras** pour les éléments clés
+    - **Puces et sous-puces** pour la lisibilité
+
+    Transcription d'entretien à analyser :
     {summary}
-    
-    Please provide:
-    1. A list of 3-5 specific strengths demonstrated by the candidate
-    2. A list of 2-4 specific areas for improvement
-    3. A concise overall recommendation (hire/consider/reject with brief justification)
-    4. A score from 0-100 representing the candidate's overall performance
-    
-    Format your response as a JSON object with the following structure:
+
+    Générez maintenant le rapport d'évaluation correspondant en format JSON avec cette structure :
     {{
-        "strengths": ["strength1", "strength2", ...],
-        "weaknesses": ["weakness1", "weakness2", ...],
-        "recommendation": "Your recommendation text here",
-        "score": 75
+        "report_content": "Le rapport complet formaté en markdown selon la structure ci-dessus",
+        "score": 4.2,
+        "recommendation": "Synthèse de la recommandation finale"
     }}
-    
-    Ensure the score accurately reflects the candidate's performance based on the summary.
+
+    Le score doit être sur 5 avec une décimale (ex: 4.2/5).
     """
     
     # Prepare the request to OpenAI
@@ -226,34 +298,55 @@ async def generate_report_from_summary(summary: str) -> Dict[str, Any]:
             result = response.json()
             content = result["choices"][0]["message"]["content"]
             
+            print(f"OpenAI raw response content: {content}")
+            
+            # Strip markdown code blocks if present
+            if content.startswith('```json'):
+                content = content.replace('```json', '').replace('```', '').strip()
+                print(f"Stripped markdown, cleaned content: {content}")
+            
             # Parse the JSON response
             try:
                 report_data = json.loads(content)
                 
-                # Validate the structure
-                if not all(k in report_data for k in ["strengths", "weaknesses", "recommendation", "score"]):
+                # Validate the structure for new format
+                if not all(k in report_data for k in ["report_content", "recommendation", "score"]):
                     raise ValueError("Missing required fields in the generated report")
                 
-                # Ensure score is within range
-                report_data["score"] = max(0, min(100, report_data["score"]))
+                # Ensure score is within range (0-5 scale now)
+                report_data["score"] = max(0, min(5, report_data["score"]))
                 
-                return report_data
+                # Convert to the expected format for database storage
+                # We'll store the full report content as a single field
+                formatted_report = {
+                    "report_content": report_data["report_content"],
+                    "recommendation": report_data["recommendation"],
+                    "score": int(report_data["score"] * 20),  # Convert 5-scale to 100-scale for compatibility
+                    "strengths": ["Voir rapport complet"],  # Placeholder for backward compatibility
+                    "weaknesses": ["Voir rapport complet"]   # Placeholder for backward compatibility
+                }
                 
-            except json.JSONDecodeError:
-                # If JSON parsing fails, try to extract the data manually
+                return formatted_report
+                
+            except json.JSONDecodeError as e:
+                # If JSON parsing fails, log the error and content
+                print(f"JSON parsing failed: {str(e)}")
+                print(f"Failed to parse content: {content}")
                 return {
-                    "strengths": ["Strong communication skills", "Technical knowledge"],
-                    "weaknesses": ["Needs improvement in problem-solving"],
-                    "recommendation": "Consider based on role requirements",
-                    "score": 65
+                    "report_content": "# Rapport d'évaluation\n\nErreur lors de l'analyse automatique de la transcription. Veuillez analyser manuellement.",
+                    "recommendation": "Analyse manuelle requise en raison d'une erreur de traitement",
+                    "score": 65,
+                    "strengths": ["Voir rapport complet"],
+                    "weaknesses": ["Voir rapport complet"]
                 }
     
     except Exception as e:
         print(f"Error generating report with OpenAI: {str(e)}")
         # Return a default response in case of error
         return {
-            "strengths": ["Unable to analyze strengths due to processing error"],
-            "weaknesses": ["Unable to analyze weaknesses due to processing error"],
-            "recommendation": "Unable to generate recommendation due to processing error",
-            "score": 50
+            "report_content": "# Rapport d'évaluation\n\n**Erreur de traitement**\n\nImpossible de générer le rapport automatiquement. Une analyse manuelle est requise.",
+            "recommendation": "Erreur de traitement - analyse manuelle requise",
+            "score": 50,
+            "strengths": ["Voir rapport complet"],
+            "weaknesses": ["Voir rapport complet"]
         }

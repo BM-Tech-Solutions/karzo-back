@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
@@ -9,6 +9,13 @@ class InvitationBase(BaseModel):
 
 class InvitationCreate(InvitationBase):
     job_offer_id: Optional[int] = None
+    # Language field
+    language: Optional[str] = None
+    # TTS parameters for ElevenLabs voice configuration
+    tts_temperature: Optional[float] = Field(None, ge=0, le=1, description="LLM temperature (0-1)")
+    tts_stability: Optional[float] = Field(None, ge=0, le=1, description="Voice stability (0-1)")
+    tts_speed: Optional[float] = Field(None, ge=0.25, le=4.0, description="Speaking speed (0.25-4.0)")
+    tts_similarity_boost: Optional[float] = Field(None, ge=0, le=1, description="Voice similarity (0-1)")
     # External company information (when inviting for another company)
     external_company_name: Optional[str] = None
     external_company_email: Optional[EmailStr] = None
@@ -21,6 +28,13 @@ class InvitationBulkCreate(BaseModel):
     emails: list[str]
     job_offer_id: Optional[int] = None
     message: Optional[str] = None
+    # Language field
+    language: Optional[str] = None
+    # TTS parameters for ElevenLabs voice configuration
+    tts_temperature: Optional[float] = Field(None, ge=0, le=1, description="LLM temperature (0-1)")
+    tts_stability: Optional[float] = Field(None, ge=0, le=1, description="Voice stability (0-1)")
+    tts_speed: Optional[float] = Field(None, ge=0.25, le=4.0, description="Speaking speed (0.25-4.0)")
+    tts_similarity_boost: Optional[float] = Field(None, ge=0, le=1, description="Voice similarity (0-1)")
     # External company information (when inviting for another company)
     external_company_name: Optional[str] = None
     external_company_email: Optional[EmailStr] = None
@@ -60,6 +74,13 @@ class InvitationPublic(BaseModel):
     candidate_email: str
     message: Optional[str] = None
     expires_at: datetime
+    # Language field
+    language: Optional[str] = None
+    # TTS parameters for ElevenLabs voice configuration
+    tts_temperature: Optional[float] = None
+    tts_stability: Optional[float] = None
+    tts_speed: Optional[float] = None
+    tts_similarity_boost: Optional[float] = None
     # External company fields
     external_company_name: Optional[str] = None
     external_company_email: Optional[str] = None

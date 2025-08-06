@@ -13,6 +13,9 @@ from app.crud import guest_interview as guest_interview_crud
 from app.crud import guest_report as guest_report_crud
 from app.models import guest_report
 from app.models.company import Company
+from app.models.guest_report import GuestReport
+from app.models.guest_candidate import GuestInterview
+from app.models.job_offer import JobOffer
 from app.crud import company as company_crud
 from app.schemas.company import CompanyRead, CompanyUpdate
 from app.schemas.candidate import CandidateRead
@@ -73,20 +76,26 @@ def get_dashboard_stats(
         # Get total candidates (users who have interviews for this company's job offers)
         job_offer_ids = [jo.id for jo in job_offers]
         
-        # Count total candidates and pending interviews
+        # Count total candidates, pending interviews, and total interviews
         total_candidates = 0
         pending_interviews = 0
+        total_interviews = 0
         
         if job_offer_ids:
             # Only query if there are job offers
             total_candidates = interview_crud.count_unique_candidates_by_job_offers(db, job_offer_ids)
             pending_interviews = interview_crud.count_pending_interviews_by_job_offers(db, job_offer_ids)
+            
+            # Count total interviews (both regular and guest)
+            regular_interviews = interview_crud.get_interviews_by_company(db, current_company.id)
+            guest_interviews = guest_interview_crud.get_guest_interviews_by_company(db, current_company.id)
+            total_interviews = len(regular_interviews) + len(guest_interviews)
         
         return {
             "totalJobOffers": len(job_offers),
             "activeJobOffers": len(active_job_offers),
             "totalCandidates": total_candidates,
-            "pendingInterviews": pending_interviews,
+            "totalInterviews": total_interviews,
         }
     except Exception as e:
         print(f"Error in dashboard stats: {e}")
@@ -94,7 +103,7 @@ def get_dashboard_stats(
             "totalJobOffers": 0,
             "activeJobOffers": 0,
             "totalCandidates": 0,
-            "pendingInterviews": 0,
+            "totalInterviews": 0,
         }
 
 @router.get("/recent-applications")
@@ -449,6 +458,7 @@ def get_report_by_id(
             response = {
                 "id": report.id,
                 "content": report.transcript if report.transcript else [],
+                "report_content": report.report_content if hasattr(report, 'report_content') and report.report_content else None,
                 "summary": report.transcript_summary if report.transcript_summary else "",
                 "strengths": report.strengths if report.strengths else [],
                 "weaknesses": report.improvements if report.improvements else [],
@@ -476,4 +486,73 @@ def get_report_by_id(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching report: {str(e)}"
+        )
+
+@router.delete("/reports/{report_id}")
+def delete_guest_report(
+    report_id: int,
+    current_company: Company = Depends(get_current_company),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a guest report and reset the interview status to allow regeneration
+    """
+    try:
+        # Get the report first to verify it exists and belongs to this company
+        report = db.query(GuestReport).filter(GuestReport.id == report_id).first()
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+        
+        # Get the guest interview to verify company ownership
+        guest_interview = db.query(GuestInterview).filter(
+            GuestInterview.id == report.guest_interview_id
+        ).first()
+        
+        if not guest_interview:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Associated interview not found"
+            )
+        
+        # Get the job offer to verify company ownership
+        job_offer = db.query(JobOffer).filter(
+            JobOffer.id == guest_interview.job_offer_id
+        ).first()
+        
+        if not job_offer or job_offer.company_id != current_company.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to delete this report"
+            )
+        
+        # Delete the report
+        db.delete(report)
+        
+        # Reset the interview status to "passed" so it can be regenerated
+        guest_interview.status = "passed"
+        guest_interview.report_id = None
+        guest_interview.report_status = None
+        
+        db.commit()
+        
+        logger.info(f"Deleted guest report {report_id} and reset interview {guest_interview.id} status to 'passed'")
+        
+        return {
+            "message": "Report deleted successfully",
+            "report_id": report_id,
+            "interview_id": guest_interview.id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting guest report {report_id}: {str(e)}")
+        logger.error(traceback.format_exc())
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting report: {str(e)}"
         )
