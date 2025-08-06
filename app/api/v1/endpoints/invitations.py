@@ -244,6 +244,13 @@ def get_public_invitation(
         "candidate_email": invitation.candidate_email,
         "message": invitation.message,
         "expires_at": invitation.expires_at,
+        # Language field
+        "language": getattr(invitation, 'language', None),
+        # TTS parameters
+        "tts_temperature": getattr(invitation, 'tts_temperature', None),
+        "tts_stability": getattr(invitation, 'tts_stability', None),
+        "tts_speed": getattr(invitation, 'tts_speed', None),
+        "tts_similarity_boost": getattr(invitation, 'tts_similarity_boost', None),
         # External company fields (with safe attribute access)
         "external_company_name": getattr(invitation, 'external_company_name', None),
         "external_company_email": getattr(invitation, 'external_company_email', None),

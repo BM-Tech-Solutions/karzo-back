@@ -102,7 +102,7 @@ def complete_guest_interview(interview_id: int, data: Dict[str, Any] = Body(...)
 @router.post("/guest-interviews/{interview_id}/mark-done", response_model=Dict[str, Any])
 def mark_guest_interview_done(interview_id: int, db: Session = Depends(get_db)):
     """
-    Mark a guest interview as 'done' after a report has been successfully generated.
+    Mark a guest interview as 'report_generated' after a report has been successfully generated.
     This endpoint should be called after report generation is complete.
     """
     # Find the guest interview
@@ -113,15 +113,15 @@ def mark_guest_interview_done(interview_id: int, db: Session = Depends(get_db)):
             detail=f"Guest interview with ID {interview_id} not found"
         )
     
-    # Update the guest interview status to "done"
+    # Update the guest interview status to "report_generated"
     updated_interview = guest_interview_crud.update_guest_interview_status(
         db, 
         interview_id=interview_id, 
-        status="done"
+        status="report_generated"
     )
     
     return {
-        "message": "Guest interview marked as done after report generation",
+        "message": "Guest interview marked as report_generated after report generation",
         "interview_id": interview_id,
         "status": updated_interview.status
     }
@@ -169,10 +169,17 @@ def generate_guest_interview_report(
                 detail="Failed to fetch conversation data from ElevenLabs API"
             )
         
+        print(f"ElevenLabs conversation data keys: {list(conversation_data.keys())}")
+        print(f"ElevenLabs analysis data: {conversation_data.get('analysis', {})}")
+        
         # Extract relevant data for report
         transcript = conversation_data.get("transcript", [])
         analysis = conversation_data.get("analysis", {})
         metadata = conversation_data.get("metadata", {})
+        
+        print(f"Transcript length: {len(transcript)}")
+        print(f"Transcript summary: {analysis.get('transcript_summary', '')}")
+        print(f"Analysis keys: {list(analysis.keys())}")
         
         # Create report content
         report_content = {
@@ -185,6 +192,8 @@ def generate_guest_interview_report(
                 "job_title": job_offer.title
             }
         }
+        
+        print(f"Report content summary being sent to OpenAI: {report_content['summary'][:200] if report_content['summary'] else 'EMPTY'}")
         
         # Create or update report in database
         report = guest_report_crud.create_or_update_guest_report(
@@ -201,11 +210,11 @@ def generate_guest_interview_report(
             report_status="completed"
         )
         
-        # Mark the interview as done
+        # Mark the interview as report_generated
         updated_interview = guest_interview_crud.update_guest_interview_status(
             db=db,
             interview_id=interview_id,
-            status="done"
+            status="report_generated"
         )
         
         return {
