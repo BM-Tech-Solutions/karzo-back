@@ -7,6 +7,8 @@ import requests
 import logging
 import os
 from datetime import datetime
+from pydantic import BaseModel, Field
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +18,106 @@ from app.crud import guest_interview as guest_interview_crud
 from app.crud import guest_report as guest_report_crud
 from app.models.company import Company
 from app.models.job_offer import JobOffer
+from app.utils.openai_helper import generate_report_from_transcript
 
 # ElevenLabs API key - in production, this should be in environment variables
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
 router = APIRouter()
+
+class TestGenerateRequest(BaseModel):
+    conversation_id: str = Field(..., description="ElevenLabs conversation ID", examples=["conv_3901k1zbg9j3fge8bveptt9nbnpm"])
+    elevenlabs_api_key: str = Field(..., description="ElevenLabs XI API key")
+    job_title: Optional[str] = Field(None, description="Job title context passed to OpenAI")
+
+class TestReport(BaseModel):
+    report_content: str
+
+class TestGenerateResponse(BaseModel):
+    message: str
+    conversation_id: str
+    report: TestReport
+    transcript: List[Dict[str, Any]]
+
+@router.post(
+    "/test/generate-report",
+    response_model=TestGenerateResponse,
+    summary="Generate report from ElevenLabs conversation (test)",
+    description="Fetches conversation by ID from ElevenLabs and generates a report from the full transcript using OpenAI. Does not persist to DB."
+)
+def test_generate_report_from_conversation(
+    data: TestGenerateRequest = Body(..., example={
+        "conversation_id": "conv_3901k1zbg9j3fge8bveptt9nbnpm",
+        "elevenlabs_api_key": "sk_xxx",
+        "job_title": "Generative AI Engineer"
+    })
+):
+    """Public test endpoint to generate a report directly from an ElevenLabs conversation."""
+    conversation_id = data.conversation_id
+    xi_api_key = data.elevenlabs_api_key
+    job_title = data.job_title
+
+    if not conversation_id or not xi_api_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="conversation_id and elevenlabs_api_key are required")
+
+    try:
+        url = f"https://api.elevenlabs.io/v1/convai/conversations/{conversation_id}"
+        # Use standard header casing
+        resp = requests.get(url, headers={"Xi-Api-Key": xi_api_key}, timeout=30)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"ElevenLabs error: {resp.status_code}")
+
+        conversation = resp.json()
+
+        # Normalize transcript from various possible shapes
+        raw_transcript = conversation.get("transcript")
+        normalized: List[Dict[str, Any]] = []
+
+        if isinstance(raw_transcript, list):
+            normalized = raw_transcript  # expect list of dicts
+        elif isinstance(raw_transcript, str) and raw_transcript.strip():
+            normalized = [{"role": "user", "message": raw_transcript.strip()}]
+        else:
+            # Try alternative keys often used by providers
+            alt = conversation.get("messages") or conversation.get("turns") or conversation.get("conversation")
+            if isinstance(alt, list):
+                normalized = alt
+            elif isinstance(alt, str) and alt.strip():
+                normalized = [{"role": "user", "message": alt.strip()}]
+            else:
+                normalized = []
+
+        logger.info(f"Test generate: transcript items = {len(normalized)}")
+
+        # Project to simplified transcript shape {role, message}
+        simple_transcript: List[Dict[str, Any]] = []
+        for turn in normalized:
+            if not isinstance(turn, dict):
+                continue
+            r = str(turn.get("role", turn.get("speaker", "")) or "").strip()
+            m = turn.get("message")
+            if m is None:
+                # fallbacks for other schemas
+                m = turn.get("text") or turn.get("content") or turn.get("value")
+            m = str(m or "").strip()
+            if not m:
+                continue
+            simple_transcript.append({"role": r or "user", "message": m})
+
+        # Generate report using simplified transcript
+        report = asyncio.run(generate_report_from_transcript(simple_transcript, job_title=job_title))
+
+        return TestGenerateResponse(
+            message="Report generated from transcript",
+            conversation_id=conversation_id,
+            report=TestReport(**report),
+            transcript=simple_transcript
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Test generate report failed: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.put("/guest-interviews/{interview_id}/status", response_model=Dict[str, Any])
 def update_guest_interview_status(

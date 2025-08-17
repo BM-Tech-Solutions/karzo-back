@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Optional
 from app.models.guest_report import GuestReport
 from datetime import datetime
 import asyncio
-from app.utils.openai_helper import generate_report_from_summary
+from app.utils.openai_helper import generate_report_from_summary, generate_report_from_transcript
 
 def create_guest_report(
     db: Session,
@@ -105,10 +105,15 @@ def create_or_update_guest_report(
     evaluation = content.get("evaluation", {})
     metadata = content.get("metadata", {})
     
-    # Use OpenAI to generate report fields from the summary
+    # Use OpenAI to generate report fields from the FULL TRANSCRIPT
     try:
         # Run the async function in a synchronous context
-        openai_report = asyncio.run(generate_report_from_summary(summary))
+        job_title = None
+        if isinstance(metadata, dict):
+            # job_title was added in our endpoint under metadata
+            job_title = metadata.get("job_title") or metadata.get("title")
+
+        openai_report = asyncio.run(generate_report_from_transcript(transcript, job_title=job_title))
         
         # Extract data from OpenAI response
         report_content = openai_report.get("report_content", "")

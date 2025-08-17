@@ -350,3 +350,191 @@ async def generate_report_from_summary(summary: str) -> Dict[str, Any]:
             "strengths": ["Voir rapport complet"],
             "weaknesses": ["Voir rapport complet"]
         }
+
+
+async def generate_report_from_transcript(transcript: List[Dict[str, Any]], job_title: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Generate a detailed report using the full interview transcript (role + message) rather than a summary.
+
+    Args:
+        transcript: List of turns with fields including 'role' and 'message'.
+        job_title: Optional job title context to include in the prompt.
+
+    Returns:
+        A dict with only: report_content
+    """
+    if not OPENAI_API_KEY:
+        raise ValueError("OpenAI API key is not configured")
+
+    # Build a readable transcript text
+    turns: List[str] = []
+    for turn in transcript or []:
+        # Accept multiple possible keys from different providers
+        role_raw = turn.get("role", turn.get("speaker", ""))
+        role = str(role_raw).strip()
+        # Prefer 'message', but gracefully fall back to other common fields
+        msg_raw = (
+            turn.get("message")
+            if turn.get("message") is not None else
+            turn.get("text")
+            if turn.get("text") is not None else
+            turn.get("content")
+            if turn.get("content") is not None else
+            turn.get("value")
+        )
+        msg = str(msg_raw or "").strip()
+        if not msg:
+            continue
+        # Normalize role to fr labels
+        role_label = "Agent" if role.lower() == "agent" else ("Candidat" if role.lower() == "user" else role.capitalize())
+        turns.append(f"- {role_label}: {msg}")
+    transcript_block = "\n".join(turns)
+
+    job_title_line = f"Poste visé: {job_title}\n" if job_title else ""
+
+    prompt = f"""Vous êtes un assistant RH expert. À partir de la transcription complète de l'entretien ci-dessous, générez un rapport d'évaluation en français au FORMAT MARKDOWN (titres, sous-titres, listes à puces). Conservez l'ordre des sections et des informations.
+
+RÈGLES IMPORTANTES:
+- Remplacez TOUS les éléments entre crochets par des valeurs concrètes déduites de la conversation.
+- Calculez un Score global entre 0.0 et 5.0 (une décimale) sur la base de l'évaluation de la conversation. N'écrivez JAMAIS [X.X/5].
+- Pour la Date de l’entretien: si inconnue, laissez la valeur VIDE après les deux-points (aucun texte). N'écrivez pas [à compléter].
+- Fournissez une Recommandation claire et actionnable (poursuivre, présélectionner, refuser, conditions, etc.) basée sur la conversation. N'écrivez JAMAIS "Non mentionnée" pour la recommandation.
+- Si une information du profil est introuvable (ex: nom), vous pouvez utiliser "Non mentionné(e)" MAIS PAS pour le score ni la recommandation.
+
+ # Rapport d’évaluation
+ 
+ - Candidat : [Nom Prénom]
+ - Poste visé : [Intitulé du poste]
+ - Date de l’entretien : 
+ - Expérience totale : [Durée totale + détail stages/professionnel]
+ - Score global : [X.X/5]
+ - Statut du rapport : Présélection réalisée
+ 
+ ## Présélection
+ 
+ ### Vérifications effectuées
+ - [élément 1]
+ - [élément 2]
+ 
+ ### Disponibilité
+ - [détails]
+ 
+ ### Prétention salariale
+ - [détails]
+ 
+ ### Autres réponses aux questions du recruteur
+ - [détails]
+ 
+ ## Évaluation
+ 
+ ### Points forts
+ - Formation : [texte]
+ - Expériences professionnelles : [texte]
+ - Missions réalisées : [texte]
+ - Compétences techniques : [texte]
+ - Langues : [texte]
+ - Posture : [texte]
+ 
+ ### Points faibles
+ - [texte]
+ 
+ ## Recommandation
+ - [texte]
+ 
+ Ne retournez que du MARKDOWN en tant que texte dans un JSON STRICT avec exactement UNE clé:
+  - report_content: le rapport en Markdown EXACTEMENT au format ci-dessus (sans autre champ)
+
+Contexte (à utiliser pour remplir le rapport):
+{job_title_line}Transcription complète de l'entretien:
+{transcript_block}
+"""
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {OPENAI_API_KEY}"
+    }
+
+    payload = {
+        "model": "gpt-4o",
+        "messages": [
+            {"role": "system", "content": "Vous êtes un assistant RH expert et strict. Vous suivez exactement les instructions et renvoyez UNIQUEMENT le format demandé."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.2,
+        "max_tokens": 4000,
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                OPENAI_API_URL,
+                headers=headers,
+                json=payload,
+                timeout=45.0
+            )
+
+            if response.status_code != 200:
+                raise Exception(f"OpenAI API error: {response.status_code} - {response.text}")
+
+            result = response.json()
+            choices = result.get("choices", [])
+            content = choices[0].get("message", {}).get("content", "{}")
+            # Debug log (truncated)
+            print(f"OpenAI raw content (first 200): {str(content)[:200]}")
+
+        # Some models wrap JSON in code fences; strip if present
+        cleaned = content.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned.removeprefix("```json").removeprefix("```").strip()
+        elif cleaned.startswith("```"):
+            cleaned = cleaned.removeprefix("```").strip()
+
+        try:
+            data = json.loads(cleaned)
+            # Validate required field
+            if not isinstance(data, dict) or "report_content" not in data:
+                raise ValueError("Invalid response format: 'report_content' missing")
+            report_content = str(data.get("report_content", "")).strip()
+            return {"report_content": report_content}
+        except Exception as parse_err:
+            # If it's not valid JSON, accept raw content as the report text if it looks like a report
+            if isinstance(cleaned, str) and ("Rapport" in cleaned or "Candidat" in cleaned or "Score global" in cleaned):
+                print(f"Non-JSON content accepted as report (first 200): {cleaned[:200]}")
+                return {"report_content": cleaned}
+            # Otherwise, propagate to generic fallback
+            print(f"JSON parse error: {str(parse_err)}; content sample: {cleaned[:200]}")
+            raise
+    except Exception as e:
+        print(f"Error generating transcript-based report with OpenAI: {str(e)}")
+        # Helpful debug of provided context sizes
+        try:
+            print(f"Transcript length (chars): {len(transcript_block)}; turns: {len(turns)}")
+        except Exception:
+            pass
+        return {
+            "report_content": (
+                "# Rapport d’évaluation\n\n"
+                "- Candidat : Non mentionné\n"
+                "- Poste visé : Non mentionné\n"
+                "- Date de l’entretien : \n"
+                "- Expérience totale : Non mentionnée\n"
+                "- Score global : 0.0/5\n"
+                "- Statut du rapport : Présélection réalisée\n\n"
+                "## Présélection\n\n"
+                "### Vérifications effectuées\n"
+                "- Non mentionnées\n\n"
+                "### Disponibilité\n"
+                "- Non mentionnée\n\n"
+                "### Prétention salariale\n"
+                "- Non mentionnée\n\n"
+                "### Autres réponses aux questions du recruteur\n"
+                "- Non mentionnées\n\n"
+                "## Évaluation\n\n"
+                "### Points forts\n"
+                "- Non mentionnés\n\n"
+                "### Points faibles\n"
+                "- Non mentionnés\n\n"
+                "## Recommandation\n"
+                "- Non mentionnée\n"
+            )
+        }

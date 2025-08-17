@@ -58,6 +58,23 @@ def update_company_me(
     updated_company = company_crud.update_company(db, current_company.id, company_in)
     return updated_company
 
+@router.post("/api-key")
+def generate_api_key(
+    current_company: Company = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate (or rotate) an API key for the authenticated company.
+    The key is stored on the company record and returned in the response.
+    """
+    try:
+        api_key = company_crud.generate_and_set_api_key(db, current_company.id)
+        return {"api_key": api_key}
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Company not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate API key: {str(e)}")
+
 @router.get("/dashboard-stats")
 def get_dashboard_stats(
     current_company: Company = Depends(get_current_company),
@@ -324,13 +341,10 @@ def get_company_reports(
                     "job_title": guest_interview.job_offer.title,
                     "status": report.status,
                     "created_at": report.created_at.isoformat() if report.created_at else None,
-                    "score": report.score,
                     "duration": report.duration,
-                    "feedback": report.feedback,
-                    "strengths": report.strengths,
-                    "improvements": report.improvements,
                     "conversation_id": report.conversation_id,
-                    "error_message": report.error_message
+                    "error_message": report.error_message,
+                    "report_content": getattr(report, "report_content", None)
                 })
         
         return formatted_reports

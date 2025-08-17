@@ -193,6 +193,8 @@ def get_public_invitation(
     """
     Get public invitation details by token (for candidates).
     """
+    from app.crud import guest_candidate as guest_candidate_crud
+    
     invitation = invitation_crud.get_invitation_by_token(db, token)
     if not invitation:
         raise HTTPException(
@@ -211,8 +213,11 @@ def get_public_invitation(
     now = datetime.now()
     logger.info(f"Checking invitation {invitation.id} expiration: {invitation.expires_at}, current time: {now}")
     
-    # Temporarily disable expiration checks to fix the issue
-    # We'll keep the expiration check commented out until we resolve the timezone issues
+    # Check if candidate already exists
+    existing_candidate = guest_candidate_crud.get_guest_candidate_by_email(db, invitation.candidate_email)
+    candidate_exists = existing_candidate is not None
+    
+    logger.info(f"Candidate existence check for {invitation.candidate_email}: {candidate_exists}")
     
     # Get company name
     company = db.query(Company).filter(Company.id == invitation.company_id).first()
@@ -244,6 +249,13 @@ def get_public_invitation(
         "candidate_email": invitation.candidate_email,
         "message": invitation.message,
         "expires_at": invitation.expires_at,
+        # Candidate existence check
+        "candidate_exists": candidate_exists,
+        "existing_candidate": {
+            "id": existing_candidate.id,
+            "full_name": existing_candidate.full_name,
+            "phone": existing_candidate.phone
+        } if existing_candidate else None,
 
         # Language field
         "language": getattr(invitation, 'language', None),
