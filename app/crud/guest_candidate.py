@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from sqlalchemy import and_, or_
 import logging
+from datetime import datetime
 
 from app.models.guest_candidate import GuestCandidate, GuestInterview
 from app.models.job_offer import JobOffer
@@ -113,3 +114,31 @@ def get_passed_guest_candidates_by_job_offers(
     except Exception as e:
         logger.error(f"Error getting passed guest candidates by job offers: {str(e)}")
         return []
+
+def create_guest_interview_for_existing_candidate(
+    db: Session, 
+    guest_candidate_id: int, 
+    job_offer_id: Optional[int] = None
+) -> Optional[GuestInterview]:
+    """
+    Create a guest interview for an existing candidate
+    """
+    try:
+        guest_interview = GuestInterview(
+            guest_candidate_id=guest_candidate_id,
+            job_offer_id=job_offer_id,
+            status="pending",
+            created_at=datetime.utcnow()
+        )
+        
+        db.add(guest_interview)
+        db.commit()
+        db.refresh(guest_interview)
+        
+        logger.info(f"Created guest interview {guest_interview.id} for existing candidate {guest_candidate_id}")
+        return guest_interview
+        
+    except Exception as e:
+        logger.error(f"Error creating guest interview for existing candidate: {str(e)}")
+        db.rollback()
+        return None

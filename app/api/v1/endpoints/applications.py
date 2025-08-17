@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional
+from pydantic import BaseModel
 import logging
 from datetime import datetime
 import uuid
@@ -14,9 +15,15 @@ from app.models.company import Company
 from app.models.guest_candidate import GuestCandidate, GuestInterview
 from app.core.config import settings
 from app.utils.openai_helper import extract_text_from_cv, generate_candidate_summary
+from app.crud import guest_candidate as guest_candidate_crud
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+class ExistingCandidateInterviewRequest(BaseModel):
+    guest_candidate_id: int
+    invitation_token: str
+    job_offer_id: Optional[int] = None
 
 @router.post("/submit-with-token", response_model=Dict[str, Any])
 async def submit_application_with_token(
@@ -186,4 +193,92 @@ async def submit_application_with_token(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create application: {str(e)}"
+        )
+
+@router.post("/existing-candidate-interview", response_model=Dict[str, Any])
+def create_interview_for_existing_candidate(
+    request: ExistingCandidateInterviewRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Create an interview for an existing guest candidate
+    """
+    logger.info(f"Creating interview for existing candidate {request.guest_candidate_id} with token {request.invitation_token}")
+    
+    # Find the invitation by token
+    invitation = db.query(Invitation).filter(Invitation.token == request.invitation_token).first()
+    
+    if not invitation:
+        logger.error(f"Invitation with token {request.invitation_token} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found"
+        )
+    
+    # Check if invitation has expired
+    if invitation.expires_at < datetime.now():
+        logger.error(f"Invitation with token {request.invitation_token} has expired")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invitation has expired"
+        )
+    
+    # Check if invitation has already been used
+    if invitation.status != "pending":
+        logger.error(f"Invitation with token {request.invitation_token} has already been used (status: {invitation.status})")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invitation has already been used"
+        )
+    
+    # Verify the guest candidate exists
+    guest_candidate = guest_candidate_crud.get_guest_candidate_by_id(db, request.guest_candidate_id)
+    if not guest_candidate:
+        logger.error(f"Guest candidate with ID {request.guest_candidate_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Guest candidate not found"
+        )
+    
+    # Verify the email matches the invitation
+    if guest_candidate.email != invitation.candidate_email:
+        logger.error(f"Guest candidate email {guest_candidate.email} does not match invitation email {invitation.candidate_email}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Guest candidate email does not match invitation"
+        )
+    
+    try:
+        # Create guest interview record
+        guest_interview = guest_candidate_crud.create_guest_interview_for_existing_candidate(
+            db=db,
+            guest_candidate_id=request.guest_candidate_id,
+            job_offer_id=request.job_offer_id
+        )
+        
+        if not guest_interview:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create interview"
+            )
+        
+        # Update invitation status
+        invitation.status = "accepted"
+        db.commit()
+        
+        logger.info(f"Interview created with ID: {guest_interview.id} for existing candidate {request.guest_candidate_id}")
+        
+        # Return interview details
+        return {
+            "guest_interview_id": guest_interview.id,
+            "status": "success",
+            "message": "Interview created successfully for existing candidate"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating interview for existing candidate: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create interview: {str(e)}"
         )

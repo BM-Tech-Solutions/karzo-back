@@ -5,6 +5,7 @@ from app.schemas.company import CompanyCreate, CompanyUpdate
 from app.core.security import get_password_hash, verify_password
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import secrets
 
 def get_company_by_email(db: Session, email: str):
     return db.query(Company).filter(Company.email == email).first()
@@ -57,6 +58,29 @@ def authenticate_company(db: Session, email: str, password: str):
     if not company or not verify_password(password, company.hashed_password):
         return None
     return company
+
+
+def generate_and_set_api_key(db: Session, company_id: int) -> str:
+    """Generate a unique API key with 'karzo-' prefix and save it to the company."""
+    db_company = get_company_by_id(db, company_id)
+    if not db_company:
+        raise ValueError("Company not found")
+
+    # generate until unique
+    while True:
+        # token_urlsafe contains - and _ which are fine, but we can simplify
+        raw = secrets.token_urlsafe(24)
+        normalized = raw.replace("_", "").replace("-", "")
+        api_key = f"karzo-{normalized}"
+        existing = db.query(Company).filter(Company.api_key == api_key).first()
+        if not existing:
+            break
+
+    db_company.api_key = api_key
+    db.add(db_company)
+    db.commit()
+    db.refresh(db_company)
+    return api_key
 
 
 def get_invitations_by_company(db: Session, company_id: int) -> List[Dict[str, Any]]:

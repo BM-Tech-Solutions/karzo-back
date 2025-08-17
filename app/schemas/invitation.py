@@ -61,6 +61,12 @@ class InvitationRead(InvitationBase):
     class Config:
         orm_mode = True
 
+class ExistingCandidate(BaseModel):
+    """Schema for existing candidate info"""
+    id: int
+    full_name: str
+    phone: Optional[str] = None
+
 class InvitationPublic(BaseModel):
     """Schema for public invitation view (for candidates)"""
     id: int
@@ -74,6 +80,9 @@ class InvitationPublic(BaseModel):
     candidate_email: str
     message: Optional[str] = None
     expires_at: datetime
+    # Candidate existence check
+    candidate_exists: bool = False
+    existing_candidate: Optional[ExistingCandidate] = None
     # Language field
     language: Optional[str] = None
     # TTS parameters for ElevenLabs voice configuration

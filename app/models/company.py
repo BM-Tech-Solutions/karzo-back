@@ -13,6 +13,10 @@ class Company(Base):
     sector = Column(String, nullable=True)  # Industry sector
     about = Column(Text, nullable=True)
     website = Column(String, nullable=True)
+    # API key used for external integrations (prefixed with "karzo-")
+    api_key = Column(String, unique=True, nullable=True, index=True)
+    # Optional parent identifier for hierarchical grouping
+    parent_id = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True)
     
     # Relationships

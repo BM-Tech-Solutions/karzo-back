@@ -16,6 +16,8 @@ class GuestCandidate(Base):
     phone = Column(String, nullable=True)
     resume_url = Column(String, nullable=True)
     candidate_summary = Column(Text, nullable=True)  # Summary generated from CV
+    # Optional parent identifier for grouping guest candidates
+    parent_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships

@@ -10,6 +10,8 @@ class JobOffer(Base):
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
     company_id = Column(Integer, ForeignKey("companies.id"))
+    # Optional parent identifier for grouping job offers
+    parent_id = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True)
     status = Column(String, default="active")
     
