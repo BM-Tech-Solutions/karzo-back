@@ -473,6 +473,7 @@ def get_report_by_id(
                 "id": report.id,
                 "content": report.transcript if report.transcript else [],
                 "report_content": report.report_content if hasattr(report, 'report_content') and report.report_content else None,
+                "language_level": report.language_level if hasattr(report, 'language_level') and report.language_level else "Intermediate",
                 "summary": report.transcript_summary if report.transcript_summary else "",
                 "strengths": report.strengths if report.strengths else [],
                 "weaknesses": report.improvements if report.improvements else [],

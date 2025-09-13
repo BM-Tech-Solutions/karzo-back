@@ -17,6 +17,7 @@ class GuestReport(Base):
     duration = Column(String, nullable=True)
     feedback = Column(Text, nullable=True)
     report_content = Column(Text, nullable=True)  # Full formatted report in markdown
+    language_level = Column(String, nullable=True)  # Language proficiency level
     strengths = Column(JSON, nullable=True)  # Store as JSON array
     improvements = Column(JSON, nullable=True)  # Store as JSON array
     created_at = Column(DateTime, default=datetime.utcnow)

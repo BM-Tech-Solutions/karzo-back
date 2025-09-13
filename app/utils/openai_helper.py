@@ -397,22 +397,24 @@ async def generate_report_from_transcript(transcript: List[Dict[str, Any]], job_
 RÈGLES IMPORTANTES:
 - Remplacez TOUS les éléments entre crochets par des valeurs concrètes déduites de la conversation.
 - Calculez un Score global entre 0.0 et 5.0 (une décimale) sur la base de l'évaluation de la conversation. N'écrivez JAMAIS [X.X/5].
-- Pour la Date de l’entretien: si inconnue, laissez la valeur VIDE après les deux-points (aucun texte). N'écrivez pas [à compléter].
+- Pour la Date de l'entretien: si inconnue, laissez la valeur VIDE après les deux-points (aucun texte). N'écrivez pas [à compléter].
+- Évaluez le Niveau de langue du candidat basé sur sa fluidité, grammaire, vocabulaire et compréhension dans la conversation. Utilisez EXACTEMENT un de ces niveaux: Beginner, Elementary, Intermediate, Upper-Intermediate, Advanced.
 - Fournissez une Recommandation claire et actionnable (poursuivre, présélectionner, refuser, conditions, etc.) basée sur la conversation. N'écrivez JAMAIS "Non mentionnée" pour la recommandation.
-- Si une information du profil est introuvable (ex: nom), vous pouvez utiliser "Non mentionné(e)" MAIS PAS pour le score ni la recommandation.
+- Si une information du profil est introuvable (ex: nom), vous pouvez utiliser "Non mentionné(e)" MAIS PAS pour le score, niveau de langue ni la recommandation.
 
- # Rapport d’évaluation
+ # Rapport d'évaluation
  
  - Candidat : [Nom Prénom]
  - Poste visé : [Intitulé du poste]
- - Date de l’entretien : 
+ - Date de l'entretien : 
  - Expérience totale : [Durée totale + détail stages/professionnel]
+ - Niveau de langue : [Beginner/Elementary/Intermediate/Upper-Intermediate/Advanced]
  - Score global : [X.X/5]
  - Statut du rapport : Présélection réalisée
  
  ## Présélection
  
- ### Vérifications effectuées
+### Vérifications effectuées
  - [élément 1]
  - [élément 2]
  
@@ -518,6 +520,7 @@ Contexte (à utiliser pour remplir le rapport):
                 "- Poste visé : Non mentionné\n"
                 "- Date de l’entretien : \n"
                 "- Expérience totale : Non mentionnée\n"
+                "- Niveau de langue : Intermediate\n"
                 "- Score global : 0.0/5\n"
                 "- Statut du rapport : Présélection réalisée\n\n"
                 "## Présélection\n\n"

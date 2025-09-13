@@ -207,3 +207,23 @@ def send_invitation_email(
         subject=subject,
         html_content=html_content,
     )
+
+def send_password_reset_code(email_to: str, code: str) -> bool:
+    """Send a 6-digit password reset code to a company user."""
+    subject = "Your Karzo password reset code"
+    html_content = f"""
+    <html>
+      <body style=\"font-family: Arial, sans-serif; color: #333;\">
+        <div style=\"max-width: 600px; margin: 0 auto; padding: 20px;\">
+          <h2>Password Reset Request</h2>
+          <p>We received a request to reset your password. Use the verification code below:</p>
+          <div style=\"background:#f4f4f5;border:1px solid #e4e4e7;border-radius:8px;padding:16px;text-align:center;\">
+            <div style=\"font-size:28px;letter-spacing:6px;font-weight:bold;\">{code}</div>
+          </div>
+          <p style=\"margin-top:16px;\">This code will expire in 15 minutes. If you did not request a password reset, you can safely ignore this email.</p>
+          <p>— The Karzo Team</p>
+        </div>
+      </body>
+    </html>
+    """
+    return send_email(email_to=email_to, subject=subject, html_content=html_content)
