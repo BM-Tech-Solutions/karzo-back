@@ -3,7 +3,24 @@ from typing import List, Dict, Any, Optional
 from app.models.guest_report import GuestReport
 from datetime import datetime
 import asyncio
+import re
 from app.utils.openai_helper import generate_report_from_summary, generate_report_from_transcript
+
+def extract_language_level_from_report(report_content: str) -> Optional[str]:
+    """
+    Extract language level from the report content using regex
+    """
+    if not report_content:
+        return None
+    
+    # Pattern to match "- Niveau de langue : [Level]"
+    pattern = r'- Niveau de langue\s*:\s*(Beginner|Elementary|Intermediate|Upper-Intermediate|Advanced)'
+    match = re.search(pattern, report_content, re.IGNORECASE)
+    
+    if match:
+        return match.group(1)
+    
+    return None
 
 def create_guest_report(
     db: Session,
@@ -117,6 +134,7 @@ def create_or_update_guest_report(
         
         # Extract data from OpenAI response
         report_content = openai_report.get("report_content", "")
+        language_level = extract_language_level_from_report(report_content)
         strengths = openai_report.get("strengths", [])
         improvements = openai_report.get("weaknesses", [])
         feedback = openai_report.get("recommendation", "")
@@ -127,6 +145,7 @@ def create_or_update_guest_report(
         print(f"Error using OpenAI for report generation: {str(e)}")
         # Fallback to the original logic if OpenAI fails
         score = 0
+        language_level = "Intermediate"  # Default fallback
         if evaluation and isinstance(evaluation, dict):
             # Try to extract scores from evaluation data
             scores = [v.get("score", 0) for v in evaluation.values() if isinstance(v, dict)]
@@ -146,12 +165,14 @@ def create_or_update_guest_report(
         
         # Generate feedback from summary
         feedback = summary
+        report_content = feedback
     
     if existing_report:
         # Update existing report
         existing_report.transcript = transcript
         existing_report.transcript_summary = summary
         existing_report.report_content = report_content if 'report_content' in locals() else feedback
+        existing_report.language_level = language_level if 'language_level' in locals() else "Intermediate"
         existing_report.score = score
         existing_report.feedback = feedback
         existing_report.strengths = strengths
@@ -180,6 +201,7 @@ def create_or_update_guest_report(
             transcript=transcript,
             transcript_summary=summary,
             report_content=report_content if 'report_content' in locals() else feedback,
+            language_level=language_level if 'language_level' in locals() else "Intermediate",
             score=score,
             feedback=feedback,
             strengths=strengths,
