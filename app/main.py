@@ -23,8 +23,8 @@ class CustomCORSMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             response = JSONResponse(content={})
             response.headers["Access-Control-Allow-Origin"] = "*"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
             response.headers["Access-Control-Max-Age"] = "86400"  # 24 hours cache for preflight requests
             return response
 
@@ -34,8 +34,8 @@ class CustomCORSMiddleware(BaseHTTPMiddleware):
             
             # Add CORS headers to every response
             response.headers["Access-Control-Allow-Origin"] = "*"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
             
             return response
         except Exception as e:
@@ -50,8 +50,8 @@ class CustomCORSMiddleware(BaseHTTPMiddleware):
             
             # Add CORS headers to error responses too
             error_response.headers["Access-Control-Allow-Origin"] = "*"
-            error_response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD"
-            error_response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+            error_response.headers["Access-Control-Allow-Methods"] = "*"
+            error_response.headers["Access-Control-Allow-Headers"] = "*"
             
             return error_response
 
