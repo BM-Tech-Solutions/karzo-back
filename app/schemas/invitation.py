@@ -16,6 +16,8 @@ class InvitationCreate(InvitationBase):
     tts_stability: Optional[float] = Field(None, ge=0, le=1, description="Voice stability (0-1)")
     tts_speed: Optional[float] = Field(None, ge=0.25, le=4.0, description="Speaking speed (0.25-4.0)")
     tts_similarity_boost: Optional[float] = Field(None, ge=0, le=1, description="Voice similarity (0-1)")
+    # Technical interview parameter
+    more_technical: Optional[bool] = Field(None, description="More technical interview flag")
     # External company information (when inviting for another company)
     external_company_name: Optional[str] = None
     external_company_email: Optional[EmailStr] = None
@@ -35,6 +37,8 @@ class InvitationBulkCreate(BaseModel):
     tts_stability: Optional[float] = Field(None, ge=0, le=1, description="Voice stability (0-1)")
     tts_speed: Optional[float] = Field(None, ge=0.25, le=4.0, description="Speaking speed (0.25-4.0)")
     tts_similarity_boost: Optional[float] = Field(None, ge=0, le=1, description="Voice similarity (0-1)")
+    # Technical interview parameter
+    more_technical: Optional[bool] = Field(None, description="More technical interview flag")
     # External company information (when inviting for another company)
     external_company_name: Optional[str] = None
     external_company_email: Optional[EmailStr] = None
@@ -90,6 +94,8 @@ class InvitationPublic(BaseModel):
     tts_stability: Optional[float] = None
     tts_speed: Optional[float] = None
     tts_similarity_boost: Optional[float] = None
+    # Technical interview parameter
+    more_technical: Optional[bool] = None
     # External company fields
     external_company_name: Optional[str] = None
     external_company_email: Optional[str] = None
