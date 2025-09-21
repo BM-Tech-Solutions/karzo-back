@@ -103,7 +103,9 @@ def create_invitation(
             tts_temperature=invitation_in.tts_temperature,
             tts_stability=invitation_in.tts_stability,
             tts_speed=invitation_in.tts_speed,
-            tts_similarity_boost=invitation_in.tts_similarity_boost
+            tts_similarity_boost=invitation_in.tts_similarity_boost,
+            # Technical interview parameter
+            more_technical=invitation_in.more_technical
 
         )
         
@@ -254,7 +256,9 @@ def create_bulk_invitations(
             tts_temperature=bulk_invitation.tts_temperature,
             tts_stability=bulk_invitation.tts_stability,
             tts_speed=bulk_invitation.tts_speed,
-            tts_similarity_boost=bulk_invitation.tts_similarity_boost
+            tts_similarity_boost=bulk_invitation.tts_similarity_boost,
+            # Technical interview parameter
+            more_technical=bulk_invitation.more_technical
         )
         
         db.add(invitation)

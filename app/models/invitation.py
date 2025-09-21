@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Float
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Float, Boolean
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -26,6 +26,9 @@ class Invitation(Base):
     tts_stability = Column(Float, nullable=True)    # Voice stability (0-1)
     tts_speed = Column(Float, nullable=True)        # Speaking speed (0.25-4.0)
     tts_similarity_boost = Column(Float, nullable=True)  # Voice similarity (0-1)
+    
+    # Technical interview parameter
+    more_technical = Column(Boolean, nullable=True, default=False)  # More technical interview flag
     # External company fields
     external_company_name = Column(String, nullable=True)
     external_company_email = Column(String, nullable=True)
