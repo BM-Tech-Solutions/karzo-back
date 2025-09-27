@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 from app.db.session import get_db
 from app.api.v1.company_auth import get_current_company
+from app.core.security import verify_token
+from app.crud.company import get_company_by_email
 from app.crud import guest_interview as guest_interview_crud
 from app.crud import guest_report as guest_report_crud
 from app.models.company import Company
@@ -24,6 +26,33 @@ from app.utils.openai_helper import generate_report_from_transcript
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
 router = APIRouter()
+
+def is_api_key_valid(request: Request) -> bool:
+    """Validate X-API-Key header against KARZO_API_TOKEN env variable."""
+    try:
+        expected = os.getenv("KARZO_API_TOKEN")
+        provided = request.headers.get("X-API-Key") or request.headers.get("x-api-key")
+        return bool(expected) and provided == expected
+    except Exception:
+        return False
+
+def get_company_or_none(request: Request, db: Session = Depends(get_db)) -> Optional[Company]:
+    """Try to retrieve the current company from Bearer token; return None if missing/invalid."""
+    try:
+        auth = request.headers.get("authorization") or request.headers.get("Authorization")
+        if not auth:
+            return None
+        parts = auth.split()
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            return None
+        token = parts[1]
+        email = verify_token(token)
+        if not email:
+            return None
+        company = get_company_by_email(db, email)
+        return company
+    except Exception:
+        return None
 
 class TestGenerateRequest(BaseModel):
     conversation_id: str = Field(..., description="ElevenLabs conversation ID", examples=["conv_3901k1zbg9j3fge8bveptt9nbnpm"])
@@ -226,8 +255,9 @@ def mark_guest_interview_done(interview_id: int, db: Session = Depends(get_db)):
 @router.post("/guest-interviews/{interview_id}/generate-report", response_model=Dict[str, Any])
 def generate_guest_interview_report(
     interview_id: int,
-    current_company: Company = Depends(get_current_company),
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
+    current_company: Optional[Company] = Depends(get_company_or_none),
 ):
     """
     Generate a report for a guest interview by fetching conversation data from ElevenLabs API.
@@ -241,12 +271,32 @@ def generate_guest_interview_report(
             detail=f"Guest interview with ID {interview_id} not found"
         )
     
-    # Check if this interview belongs to a job offer from this company
+    # Fetch the job offer once; required later for metadata regardless of auth path
     job_offer = db.query(JobOffer).filter(JobOffer.id == guest_interview.job_offer_id).first()
-    if not job_offer or job_offer.company_id != current_company.id:
+    if not job_offer:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to generate report for this interview"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job offer not found for this interview"
+        )
+
+    # Check if this interview belongs to a job offer from this company,
+    # unless a valid X-API-Key is provided (bypass for service access)
+    bypass = is_api_key_valid(request)
+    if not bypass:
+        # Require authenticated company
+        if current_company is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required"
+            )
+        if job_offer.company_id != current_company.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to generate report for this interview"
+            )
+    else:
+        logger.info(
+            f"Bypassing auth via X-API-Key for generate-report on guest interview {interview_id}"
         )
     
     # Check if conversation_id exists
@@ -286,7 +336,7 @@ def generate_guest_interview_report(
             "metadata": {
                 "duration": metadata.get("call_duration_secs", 0),
                 "timestamp": datetime.utcnow().isoformat(),
-                "job_title": job_offer.title
+                "job_title": getattr(job_offer, "title", "") or ""
             }
         }
         

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 
@@ -19,8 +19,37 @@ from app.models.job_offer import JobOffer
 from app.crud import company as company_crud
 from app.schemas.company import CompanyRead, CompanyUpdate
 from app.schemas.candidate import CandidateRead
+from app.core.security import verify_token
+from app.crud.company import get_company_by_email
+import os
 
 router = APIRouter()
+
+def is_api_key_valid(request: Request) -> bool:
+    """Validate X-API-Key header against KARZO_API_TOKEN env variable."""
+    try:
+        expected = os.getenv("KARZO_API_TOKEN")
+        provided = request.headers.get("X-API-Key") or request.headers.get("x-api-key")
+        return bool(expected) and provided == expected
+    except Exception:
+        return False
+
+def get_company_or_none(request: Request, db: Session = Depends(get_db)) -> Optional[Company]:
+    """Try to resolve current company from Bearer token; return None if invalid/missing."""
+    try:
+        auth = request.headers.get("authorization") or request.headers.get("Authorization")
+        if not auth:
+            return None
+        parts = auth.split()
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            return None
+        token = parts[1]
+        email = verify_token(token)
+        if not email:
+            return None
+        return get_company_by_email(db, email)
+    except Exception:
+        return None
 
 @router.get("/me", response_model=CompanyRead)
 def read_company_me(current_company: Company = Depends(get_current_company)):
@@ -406,8 +435,9 @@ logger = logging.getLogger(__name__)
 @router.get("/reports/{report_id}")
 def get_report_by_id(
     report_id: int,
-    current_company: Company = Depends(get_current_company),
+    request: Request,
     db: Session = Depends(get_db),
+    current_company: Optional[Company] = Depends(get_company_or_none),
 ):
     """
     Get a specific report by ID for this company.
@@ -429,35 +459,44 @@ def get_report_by_id(
         # Log report details for debugging
         logger.info(f"Report details: ID={report.id}, status={report.status}, guest_interview_id={report.guest_interview_id}")
         
-        # Check if this report belongs to the company
+        # Check if this report belongs to the company, unless bypassing with X-API-Key
+        bypass = is_api_key_valid(request)
         guest_interview = guest_interview_crud.get_guest_interview_by_id(db, report.guest_interview_id)
         logger.info(f"Guest interview found: {guest_interview is not None}")
-        
+
         if not guest_interview:
             logger.warning(f"Guest interview with ID {report.guest_interview_id} not found")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Guest interview with ID {report.guest_interview_id} not found"
             )
-            
+
         logger.info(f"Guest interview details: ID={guest_interview.id}, job_offer_id={guest_interview.job_offer_id}")
-        
+
         if not guest_interview.job_offer:
             logger.warning(f"Job offer not found for guest interview {guest_interview.id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Job offer not found for this interview"
             )
-            
+
         logger.info(f"Job offer details: ID={guest_interview.job_offer.id}, company_id={guest_interview.job_offer.company_id}")
-        logger.info(f"Current company ID: {current_company.id}")
-        
-        if guest_interview.job_offer.company_id != current_company.id:
-            logger.warning(f"Company ID mismatch: {guest_interview.job_offer.company_id} != {current_company.id}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to access this report"
-            )
+
+        if not bypass:
+            if current_company is None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication required"
+                )
+            logger.info(f"Current company ID: {current_company.id}")
+            if guest_interview.job_offer.company_id != current_company.id:
+                logger.warning(f"Company ID mismatch: {guest_interview.job_offer.company_id} != {current_company.id}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Not authorized to access this report"
+                )
+        else:
+            logger.info("Bypassing auth via X-API-Key for get_report_by_id")
         
         # Get the guest candidate
         guest_candidate = None
