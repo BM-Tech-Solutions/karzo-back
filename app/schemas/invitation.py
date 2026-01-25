@@ -18,6 +18,8 @@ class InvitationCreate(InvitationBase):
     tts_similarity_boost: Optional[float] = Field(None, ge=0, le=1, description="Voice similarity (0-1)")
     # Technical interview parameter
     more_technical: Optional[bool] = Field(None, description="More technical interview flag")
+    # Anonymous interview parameter
+    anonymous: Optional[bool] = Field(None, description="Anonymous interview flag")
     # External company information (when inviting for another company)
     external_company_name: Optional[str] = None
     external_company_email: Optional[EmailStr] = None
@@ -39,6 +41,8 @@ class InvitationBulkCreate(BaseModel):
     tts_similarity_boost: Optional[float] = Field(None, ge=0, le=1, description="Voice similarity (0-1)")
     # Technical interview parameter
     more_technical: Optional[bool] = Field(None, description="More technical interview flag")
+    # Anonymous interview parameter
+    anonymous: Optional[bool] = Field(None, description="Anonymous interview flag")
     # External company information (when inviting for another company)
     external_company_name: Optional[str] = None
     external_company_email: Optional[EmailStr] = None
@@ -96,6 +100,8 @@ class InvitationPublic(BaseModel):
     tts_similarity_boost: Optional[float] = None
     # Technical interview parameter
     more_technical: Optional[bool] = None
+    # Anonymous interview parameter
+    anonymous: Optional[bool] = None
     # External company fields
     external_company_name: Optional[str] = None
     external_company_email: Optional[str] = None
