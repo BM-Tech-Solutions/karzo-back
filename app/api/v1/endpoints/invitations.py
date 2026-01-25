@@ -266,6 +266,8 @@ def get_public_invitation(
         "tts_similarity_boost": getattr(invitation, 'tts_similarity_boost', None),
         # Technical interview parameter
         "more_technical": getattr(invitation, 'more_technical', None),
+        # Anonymous parameter
+        "anonymous": getattr(invitation, 'anonymous', None),
 
         # External company fields (with safe attribute access)
         "external_company_name": getattr(invitation, 'external_company_name', None),

@@ -105,7 +105,9 @@ def create_invitation(
             tts_speed=invitation_in.tts_speed,
             tts_similarity_boost=invitation_in.tts_similarity_boost,
             # Technical interview parameter
-            more_technical=invitation_in.more_technical
+            more_technical=invitation_in.more_technical,
+            # Anonymous interview parameter
+            anonymous=invitation_in.anonymous
 
         )
         
@@ -258,7 +260,9 @@ def create_bulk_invitations(
             tts_speed=bulk_invitation.tts_speed,
             tts_similarity_boost=bulk_invitation.tts_similarity_boost,
             # Technical interview parameter
-            more_technical=bulk_invitation.more_technical
+            more_technical=bulk_invitation.more_technical,
+            # Anonymous interview parameter
+            anonymous=bulk_invitation.anonymous
         )
         
         db.add(invitation)

@@ -29,6 +29,8 @@ class Invitation(Base):
     
     # Technical interview parameter
     more_technical = Column(Boolean, nullable=True, default=False)  # More technical interview flag
+    # Anonymous interview parameter
+    anonymous = Column(Boolean, nullable=True, default=False)
     # External company fields
     external_company_name = Column(String, nullable=True)
     external_company_email = Column(String, nullable=True)
